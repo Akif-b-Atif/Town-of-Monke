@@ -1,0 +1,9 @@
+[project]
+name = "monke"
+version = "0.1.0"
+description = "Town of Monke: a Town-of-Salem-style Discord game bot"
+requires-python = ">=3.11"
+dependencies = ["discord.py>=2.4", "aiosqlite>=0.20", "python-dotenv>=1.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
