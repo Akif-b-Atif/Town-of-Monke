@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 from .. import constants as C
 from ..errors import Rejected
+from ..names import fmt_player
 from ..roles import get_def, get_handler
 from ..roles.registry import has_role
 from . import commands as K
@@ -35,12 +36,15 @@ def _announce(events: list, text: str, audience: str = E.PUBLIC) -> None:
     events.append(E.ev(E.T.ANNOUNCEMENT, audience, text=text))
 
 
-def _enter(s: GameState, phase: str, now: float, duration: float, events: list) -> None:
+def _enter(s: GameState, phase: str, now: float, duration: float, events: list, reason: str, **ctx) -> None:
+    """Every phase change carries a `reason` code and a small `ctx` dict (TRN-1). No prose here."""
     s.phase = phase
     s.phase_id += 1
     s.phase_ends_at = now + duration
+    ctx.setdefault("day", s.day_number)
+    ctx.setdefault("night", s.night_number)
     events.append(E.ev(E.T.PHASE_CHANGED, phase=phase, phase_id=s.phase_id, ends_at=s.phase_ends_at,
-                       day_number=s.day_number, night_number=s.night_number))
+                       day_number=s.day_number, night_number=s.night_number, reason=reason, ctx=ctx))
 
 
 def prompts_for(s: GameState, slot: int) -> list:
@@ -90,8 +94,9 @@ def _end_game(s: GameState, outcome: wincheck.Outcome, events: list) -> None:
 
 # ---------------------------------------------------------------- game creation
 def new_game(game_id: str, guild_id: int, user_ids: list, tokens: list, settings: Settings,
-             seed: int, strict: bool = True):
-    """Validate and create a STARTING game. Emits one RoleAssigned event per player."""
+             seed: int, strict: bool = True, names: dict = None):
+    """Validate and create a STARTING game. Emits one RoleAssigned event per player.
+    `names` maps user_id -> already-sanitised display name (NAM-1)."""
     settings.validate(strict)
     if len(set(user_ids)) != len(user_ids):
         raise Rejected("Every player must be a distinct user.")
@@ -101,7 +106,7 @@ def new_game(game_id: str, guild_id: int, user_ids: list, tokens: list, settings
     assignment = assign(list(user_ids), roles, rng)
     s = GameState(game_id=game_id, guild_id=guild_id, settings=settings, rolelist=list(canon), rng_seed=seed)
     for slot, uid, role in assignment:
-        s.players[slot] = Player(slot, uid, role)
+        s.players[slot] = Player(slot, uid, role, display_name=(names or {}).get(uid, ""))
     for p in s.players.values():
         p.state = get_handler(p.role_id).init_state(s, p)
     s.save_rng(rng)
@@ -119,24 +124,25 @@ def _begin(s: GameState, now: float, events: list) -> None:
     events.append(E.ev(E.T.ROSTER, roster=[{"slot": p.slot, "user_id": p.user_id}
                                            for p in sorted(s.players.values(), key=lambda x: x.slot)],
                        rolelist=names))
-    _enter(s, C.DAY_1, now, s.settings.day_s / 2, events)
+    _enter(s, C.DAY_1, now, s.settings.day_s / 2, events, "game_start")
     _announce(events, "Day 1 begins. There is no voting on the first day. The Jailor may choose a prisoner.")
     _emit_prompts(s, events)
 
 
-def _enter_noon(s: GameState, now: float, events: list, duration: float = None) -> None:
+def _enter_noon(s: GameState, now: float, events: list, duration: float = None,
+                reason: str = "day_timer", **ctx) -> None:
     s.votes = {}
-    _enter(s, C.NOON, now, duration if duration is not None else s.settings.noon_s, events)
     need = voting.threshold(len(s.alive_slots()))
-    _announce(events, f"Voting is open. {need} votes are needed to put someone on trial.")
+    _enter(s, C.NOON, now, duration if duration is not None else s.settings.noon_s, events, reason,
+           needed=need, **ctx)
 
 
-def _enter_afternoon(s: GameState, now: float, events: list) -> None:
+def _enter_afternoon(s: GameState, now: float, events: list, reason: str, **ctx) -> None:
     s.votes, s.trial, s.paused_remaining = {}, None, None
-    _enter(s, C.AFTERNOON, now, s.settings.day_s / 2, events)
+    _enter(s, C.AFTERNOON, now, s.settings.day_s / 2, events, reason, **ctx)
 
 
-def _start_night(s: GameState, now: float, events: list) -> None:
+def _start_night(s: GameState, now: float, events: list, reason: str) -> None:
     s.night_number += 1
     s.votes, s.trial, s.paused_remaining = {}, None, None
     jailor = next((p for p in s.players.values() if p.role_id == "jailor"), None)
@@ -145,25 +151,26 @@ def _start_night(s: GameState, now: float, events: list) -> None:
         pr = None
     s.prisoner_slot = pr
     s.night_actions = {}
-    _enter(s, C.NIGHT, now, s.settings.night_s, events)
-    _announce(events, f"Night {s.night_number} falls.")
+    _enter(s, C.NIGHT, now, s.settings.night_s, events, reason)
     if pr is not None:
         events.append(E.ev(E.T.JAIL_STARTED, E.ADMIN, prisoner=pr, jailor=jailor.slot))
         events.append(E.ev(E.T.PRIVATE, E.to_slot(pr), text="You have been hauled off to jail! Speak with the Jailor in the Jail channel."))
         events.append(E.ev(E.T.PRIVATE, E.to_slot(jailor.slot),
-                           text=f"You jailed Player {pr}. Messages you send me here are relayed anonymously."))
+                           text=f"You jailed {fmt_player(s, pr)}. Messages you send me here are relayed anonymously."))
     _emit_prompts(s, events)
 
 
 def _start_trial(s: GameState, defendant: int, now: float, events: list) -> None:
     s.paused_remaining = max(1.0, s.phase_ends_at - now)
     s.trial = {"defendant": defendant, "verdicts": {}}
-    _enter(s, C.TRIAL_DEFENSE, now, s.settings.defense_s, events)
+    _enter(s, C.TRIAL_DEFENSE, now, s.settings.defense_s, events, "trial_majority", target_slot=defendant,
+           votes=sum(1 for t in s.votes.values() if t == defendant),
+           needed=voting.threshold(len(s.alive_slots())))
     events.append(E.ev(E.T.TRIAL_STARTED, defendant=defendant, defense_s=s.settings.defense_s))
 
 
 def _start_verdict(s: GameState, now: float, events: list) -> None:
-    _enter(s, C.TRIAL_VERDICT, now, s.settings.verdict_s, events)
+    _enter(s, C.TRIAL_VERDICT, now, s.settings.verdict_s, events, "defense_timer")
     events.append(E.ev(E.T.VERDICT_OPENED, defendant=s.trial["defendant"], game_id=s.game_id,
                        token=str(s.phase_id), ends_at=s.phase_ends_at))
 
@@ -187,23 +194,22 @@ def _resolve_verdict(s: GameState, now: float, events: list) -> None:
             p.state["haunt_targets"] = list(guilty)
             if d not in s.winners:
                 s.winners.append(d)
-            _announce(events, f"The Jester (Player {d}) wins! The game continues.")
+            _announce(events, f"The Jester ({fmt_player(s, d)}) wins! The game continues.")
         outcome = wincheck.check(s)
         if outcome:
             _end_game(s, outcome, events)
             return
-        _enter_afternoon(s, now, events)
+        _enter_afternoon(s, now, events, "verdict_guilty", target_slot=d, guilty=len(guilty), innocent=len(innocent))
         return
     s.innocent_verdicts_today += 1
     s.pardoned_today.append(d)
-    _announce(events, f"Player {d} was pardoned.")
     if s.innocent_verdicts_today >= 3:
-        _announce(events, "The town has pardoned three people today. No more trials.")
-        _enter_afternoon(s, now, events)
+        _enter_afternoon(s, now, events, "three_innocent", target_slot=d, guilty=len(guilty), innocent=len(innocent))
     else:
         rem = s.paused_remaining or 10.0
         s.paused_remaining = None
-        _enter_noon(s, now, events, duration=max(1.0, rem))
+        _enter_noon(s, now, events, duration=max(1.0, rem), reason="verdict_pardon", target_slot=d,
+                    guilty=len(guilty), innocent=len(innocent), trials_left=3 - s.innocent_verdicts_today)
 
 
 def _dawn(s: GameState, now: float, events: list) -> None:
@@ -214,8 +220,7 @@ def _dawn(s: GameState, now: float, events: list) -> None:
     s.death_this_cycle = False
     s.day_number += 1
     s.innocent_verdicts_today, s.pardoned_today, s.votes, s.trial = 0, [], {}, None
-    _enter(s, C.DAY, now, s.settings.day_s, events)
-    _announce(events, f"Day {s.day_number} dawns.")
+    _enter(s, C.DAY, now, s.settings.day_s, events, "night_resolved")
     if res.death_events:
         events.extend(res.death_events)
     else:
@@ -236,19 +241,24 @@ def _advance(s: GameState, cmd: K.AdvancePhase, now: float, events: list) -> Non
         return  # a timer from before a pause/resume
     ph = s.phase
     if ph == C.DAY_1:
-        _start_night(s, now, events)
+        _start_night(s, now, events, "day1_timer")
     elif ph == C.DAY:
-        _enter_noon(s, now, events)
+        _enter_noon(s, now, events, reason="day_timer")
     elif ph == C.NOON:
-        _enter_afternoon(s, now, events)
+        _enter_afternoon(s, now, events, "noon_timeout_after_pardon" if s.pardoned_today else "noon_no_trial")
     elif ph == C.TRIAL_DEFENSE:
         _start_verdict(s, now, events)
     elif ph == C.TRIAL_VERDICT:
         _resolve_verdict(s, now, events)
     elif ph == C.AFTERNOON:
-        _start_night(s, now, events)
+        _start_night(s, now, events, "afternoon_timer")
     elif ph == C.NIGHT:
         _dawn(s, now, events)
+    if cmd.force:  # `monke skip`: tell the renderer an admin ended the phase early
+        for e in events:
+            if e.type == E.T.PHASE_CHANGED:
+                e.payload["ctx"]["admin_skip"] = True
+                e.payload["ctx"]["admin_name"] = cmd.by
 
 
 def _submit_action(s: GameState, cmd: K.SubmitAction, now: float, events: list) -> None:
@@ -310,7 +320,7 @@ def handle(state: GameState, cmd, now: float) -> Result:
             raise Rejected("No such player.")
         if p.alive and not p.state.get("inactive"):
             p.state["inactive"] = True
-            events.append(E.ev(E.T.ANNOUNCEMENT, E.ADMIN, text=f"Player {cmd.slot} left the server and will die at the next dawn."))
+            events.append(E.ev(E.T.ANNOUNCEMENT, E.ADMIN, text=f"{fmt_player(s, cmd.slot)} left the server and will die at the next dawn."))
     elif s.status == C.PAUSED:
         raise Rejected("The game is paused.")
     elif s.status == C.STARTING:

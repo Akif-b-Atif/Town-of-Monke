@@ -14,6 +14,7 @@ class BeginGame:
 class AdvancePhase:
     expected_phase_id: int
     force: bool = False  # `monke skip`
+    by: str = ""  # display name of the admin who skipped (for the banner)
 
 
 @dataclass

@@ -30,9 +30,8 @@ class JailRelay:
                 if jailor and jailor.alive and jailor.user_id == message.author.id:
                     if text.lower().startswith("monke "):
                         return False
-                    cfg = await self.bot.store.get_config(g.guild_id)
-                    ch = self.bot.get_channel(cfg.jail_id) or await self.bot.fetch_channel(cfg.jail_id)
-                    await ch.send(f"**Jailor:** {text}", allowed_mentions=NO_MENTIONS)
+                    await self.bot.presenter.send_logged("jail", f"**Jailor:** {text}", session=g, log=False)
+                    await self.bot.chatlog.log_jailor(g, text, message.id)  # ARC-3: logged once, under the Jailor's slot
                     await message.add_reaction("✅")
                     return True
             return False
@@ -49,7 +48,7 @@ class JailRelay:
             return False
         try:
             user = self.bot.get_user(jailor.user_id) or await self.bot.fetch_user(jailor.user_id)
-            await user.send(f"**Prisoner:** {text}", allowed_mentions=NO_MENTIONS)
+            await user.send(f"**Prisoner:** {text}", allowed_mentions=NO_MENTIONS)  # allow-send: a DM to the Jailor
         except discord.HTTPException:
             log.warning("could not relay to the Jailor")
         return True
