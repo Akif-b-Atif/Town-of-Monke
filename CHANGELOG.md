@@ -30,7 +30,8 @@ Quality-of-life release: clearer messages, safer admin tools and a post-game arc
 - The internal-error notice no longer shows the seed or error text.
 - Admin-only events are no longer posted while a game is live (they go to the archive).
 - The bot now needs the **Attach Files** permission (`monke setup` checks it).
-- Package version is 1.0.1.
+- Package version is 1.0.1 (`monke/__init__.py` and `pyproject.toml`).
+- `check.py` now builds the invite URL from named permissions and includes **Attach Files**.
 
 ### Removed
 - Engine announcements now covered by the phase banner: "Voting is open...", "Night N falls.", "Player N was pardoned.",
