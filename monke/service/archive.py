@@ -14,8 +14,9 @@ from ..archive.builder import archive_summary, build_archive
 from ..archive.zipper import write_zips
 from ..errors import Rejected
 
+from .. import __version__ as BOT_VERSION
+
 log = logging.getLogger("monke.archive")
-BOT_VERSION = "1.0.1"
 
 
 class ArchiveService:
