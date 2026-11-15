@@ -1,4 +1,4 @@
-# Town of Monke Bot (v1.0.1)
+# Town of Monke Bot
 
 A Town-of-Salem-style game run through Discord channel visibility, hidden numbered roles and DMs.
 Implements the v1 design spec (5-20 players, 10 roles, Day/Noon/Afternoon/Night cycle, voting and trials,
@@ -60,7 +60,7 @@ guild messages and DM messages (non-privileged).
 
 Invite it with these permissions (scopes: `bot`, `applications.commands`): **Manage Roles, Manage Channels, Manage Messages,
 View Channels, Send Messages, Embed Links, Attach Files, Read Message History, Use Slash Commands** (shown as "Use Application
-Commands" in some versions of the portal). **Do not** give it Administrator. Its role must sit above the 20 slot roles and Monke Admin.
+Commands" in some versions of the portal). Permissions integer: `2416045072` (`python check.py` prints it and a ready-made invite link). **Do not** give it Administrator. Its role must sit above the 20 slot roles and Monke Admin.
 
 > **Upgrading from 1.0.0 or earlier:** add **Attach Files** to the bot's role (Server Settings > Roles). The archive upload needs
 > it, and `monke setup` now checks for it. New database tables are created automatically on first start.
@@ -69,6 +69,20 @@ Commands" in some versions of the portal). **Do not** give it Administrator. Its
 2. Give the host the **Monke Admin** role. Admin commands work only in `#monke-commands`.
    **Everyone can read `#monke-commands`; only Monke Admin can write there.** The bot re-applies this at every start.
 3. Players must allow DMs from server members (the start aborts and lists anyone who can't be DMed).
+
+### Debug mode
+
+`python -m monke --debug` (or `MONKE_DEBUG=1`) prints everything the game does to the console, as the all-seeing admin:
+the role table at game start, every phase change with its reason, every command and its outcome, the night trace step by
+step, deaths, and every DM, post and prompt the bot sends with its recipient. It never goes to Discord, the archive or the
+log file. **The console shows every role. Do not share it or stream it during a game.**
+
+- `--debug-file PATH` also writes the same lines to a file.
+- Human chat in Town Centre, Mafia Lair, Jail, the Graveyard and DMs shows only its length (`CHAT #04 Sam in mafia (23
+  chars)`). Add `--debug-chat` to print the text too.
+- One event per line, `HH:MM:SS <game> <phase> <TAG> text`, so it can be searched (`grep DEATH`). Colour only when the
+  console is a terminal and `NO_COLOR` is unset.
+- Watch a simulated game without Discord: `python -m monke.sim.cli --games 1 --seed 7 --players 8 --debug`.
 
 ### Starting a game
 

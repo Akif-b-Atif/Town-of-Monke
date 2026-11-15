@@ -1,9 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "monke"
-version = "1.0.1"
+dynamic = ["version"]
 description = "Town of Monke: a Town-of-Salem-style Discord game bot"
 requires-python = ">=3.11"
-dependencies = ["discord.py>=2.4", "aiosqlite>=0.20", "python-dotenv>=1.0"]
+dependencies = ["discord.py>=2.4", "aiosqlite>=0.20", "python-dotenv>=1.0", "PyYAML>=6.0"]
+
+[tool.setuptools.dynamic]
+version = {attr = "monke.__version__"}
+
+[tool.setuptools.packages.find]
+include = ["monke*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

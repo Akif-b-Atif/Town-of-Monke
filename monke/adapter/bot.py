@@ -7,6 +7,7 @@ import time
 import discord
 from discord.ext import commands, tasks
 
+from ..debug import NullSink
 from ..service.archive import ArchiveService
 from ..service.capture import ChatCapture
 from ..service.game_service import GameService
@@ -23,7 +24,7 @@ log = logging.getLogger("monke.bot")
 
 
 class MonkeBot(commands.Bot):
-    def __init__(self, db_path: str = "monke.db"):
+    def __init__(self, db_path: str = "monke.db", sink=None):
         intents = discord.Intents.none()
         intents.guilds = True
         intents.guild_messages = True      # receive messages in guild channels (prefix commands, prisoner relay)
@@ -31,12 +32,14 @@ class MonkeBot(commands.Bot):
         intents.message_content = True     # PRIVILEGED: needed for `monke` commands and the jail relay
         super().__init__(command_prefix=commands.when_mentioned_or("monke "), intents=intents,
                          case_insensitive=True, help_command=None)
+        self.sink = sink or NullSink()  # DBG: the debug console, off by default
         self.store = Store(db_path)
         self.capture = ChatCapture(self.store)  # ARC-3: async queue between Discord events and SQLite
         self.presenter = DiscordPresenter(self, self.store)
+        self.presenter.sink = self.sink
         self.archive = ArchiveService(self.store, self.presenter, self.capture,
-                                      retention_days=int(os.environ.get("MONKE_ARCHIVE_DAYS", "7")))
-        self.service = GameService(self.store, self.presenter, archive=self.archive)
+                                      retention_days=int(os.environ.get("MONKE_ARCHIVE_DAYS", "7")), sink=self.sink)
+        self.service = GameService(self.store, self.presenter, archive=self.archive, sink=self.sink)
         self.relay = JailRelay(self)
         self.chatlog = ChatLogger(self)
 

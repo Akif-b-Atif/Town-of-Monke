@@ -14,6 +14,8 @@ from .. import constants as C
 from ..names import fmt_player
 from ..service.store import GuildConfig, Store
 from . import planner, strings as S, views
+from ..debug import NullSink
+from .chatlog import flatten_post
 from .textutil import (MAX_CONTENT, MAX_EMBED_DESCRIPTION, MAX_EMBEDS_PER_MESSAGE, chunked, clock, rel,
                        sanitize_name, split_text)
 
@@ -36,6 +38,7 @@ class DiscordPresenter:
         self._applied: dict = {}
         self._names: dict = {}  # game_id -> {slot: live display name}, only a fallback for pre-NAM games
         self._banners: dict = {}  # guild_id -> last pinned phase banner message
+        self.sink = NullSink()  # DBG-6: set by the bot
 
     # ------------------------------------------------------------ lookups
     async def _cfg(self, guild_id: int) -> GuildConfig:
@@ -97,6 +100,7 @@ class DiscordPresenter:
         try:
             user = self.bot.get_user(user_id) or await self.bot.fetch_user(user_id)
             await user.send(allowed_mentions=NO_MENTIONS, **kw)  # allow-send: DMs are not game channels
+            self.sink.dm(user_id, flatten_post(kw.get("content"), kw.get("embeds") or ([kw["embed"]] if kw.get("embed") else [])))
             return True
         except (discord.Forbidden, discord.HTTPException) as e:
             log.warning("DM to %s failed: %s", user_id, e)
@@ -242,6 +246,7 @@ class DiscordPresenter:
                 kw["view"] = view
             msg = await channel.send(**kw)  # allow-send: this is send_logged itself
             sent.append(msg)
+            self.sink.post(gid, channel_kind, flatten_post(kw.get("content"), kw.get("embeds")))
             if log:
                 try:
                     await self._record_chat(session, channel_kind, msg, kw.get("content"), kw.get("embeds"))
@@ -279,6 +284,7 @@ class DiscordPresenter:
         """Short, spoiler-safe notices in Monke Commands (XC-7)."""
         await (await self._channel(guild_id, "commands")).send(  # allow-send: Monke Commands
             text[:1900], allowed_mentions=NO_MENTIONS)
+        self.sink.post(guild_id, "commands", text[:1900])
 
     def _banner_text(self, state, p: dict) -> str:
         """TRN-3: reason line, blank line, heading, deadline line (and votes needed at Noon)."""
@@ -372,6 +378,7 @@ class DiscordPresenter:
         p = e.payload
         await self._fill_names(state)
         names = {s: self.name_of(state, s) for s in p["options"]}
+        self.sink.prompt(state, int(e.audience.split(":")[1]), p["label"], p["options"])
         current = ""
         if p["kind"] == "toggle" and p["current_active"] is not None:
             current = f"\n\nCurrent choice: **{'ON' if p['current_active'] else 'OFF'}**"

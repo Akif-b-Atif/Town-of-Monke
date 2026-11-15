@@ -86,6 +86,9 @@ class ChatLogger:
             return
         slot = g.slot_of_user(message.author.id)
         stored = g.players[slot].display_name if slot is not None else ""
+        sink = getattr(self.bot, "sink", None)  # DBG-3: debug mode shows only the length of human chat
+        if sink is not None:
+            sink.chat(g, kind, slot, stored or sanitize_name(message.author.display_name), message.content or "")
         self._put({
             "game_id": g.game_id, "ts_ms": int(message.created_at.timestamp() * 1000), "channel_kind": kind,
             "session": session_for(kind, g.night_number), "kind": "msg", "message_id": message.id,

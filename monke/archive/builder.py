@@ -7,9 +7,9 @@ from __future__ import annotations
 
 import bisect
 import json
-from datetime import datetime, timezone
 
 from .. import constants as C
+from ..describe import Describer, faction_title, fmt_ts, label as _label  # noqa: F401  (DBG-5)
 from ..roles import get_def
 from .channels import CHANNEL_KINDS, filename_for
 
@@ -20,26 +20,11 @@ _SKIP_IN_TIMELINE = {"ActionRecorded", "PromptRequested"}
 _VOTE_TYPES = {"VoteUpdated", "TrialStarted", "VerdictOpened", "VerdictRecorded", "VerdictsRevealed"}
 
 
-def fmt_ts(ts_ms: int) -> str:
-    return datetime.fromtimestamp(ts_ms / 1000, timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
-
-
-def _label(phase: str, day: int, night: int):
-    if phase == C.NIGHT:
-        return f"Night {night}", "night", night
-    suffix = {C.NOON: " Noon", C.TRIAL_DEFENSE: " Defense", C.TRIAL_VERDICT: " Verdict",
-              C.AFTERNOON: " Afternoon"}.get(phase, "")
-    return f"Day {day}{suffix}", "day", day
-
-
-def faction_title(faction) -> str:
-    return {"DRAW": "Draw", "ABORTED": "Aborted"}.get(faction, (faction or "Unknown").replace("_", " ").title())
-
-
 class _Ctx:
     def __init__(self, state, events, commands, chat_rows, meta):
         self.state, self.events, self.commands, self.chat, self.meta = state, events, commands, chat_rows, meta
         self.gid = state.game_id
+        self.d = Describer(state)
         # phase marks, in event order
         marks = []
         for e in events:
@@ -53,12 +38,7 @@ class _Ctx:
         self._mark_ts = [m[0] for m in marks]
 
     def who(self, slot) -> str:
-        if slot is None:
-            return "-"
-        p = self.state.players.get(slot)
-        if p is None:
-            return f"#{int(slot):02d}"
-        return f"#{slot:02d} {p.display_name or 'Player'} ({get_def(p.role_id).name})"
+        return self.d.who(slot)
 
     def phase_at(self, ts_ms: int):
         i = bisect.bisect_right(self._mark_ts, ts_ms) - 1
@@ -67,9 +47,7 @@ class _Ctx:
         return self.marks[i][1], self.marks[i][2], self.marks[i][3]
 
     def audience_slot(self, audience: str):
-        if audience and audience.startswith("slot:"):
-            return int(audience.split(":")[1])
-        return None
+        return self.d.audience_slot(audience)
 
 
 def _header(ctx, title: str) -> str:
@@ -82,75 +60,15 @@ def _line(ts_ms, label, src, text) -> str:
 
 # ---------------------------------------------------------------------------------------- events
 def _trace_text(ctx, step: dict) -> str:
-    d = step.get("detail") or {}
-    extra = " ".join(f"{k}={v}" for k, v in sorted(d.items()) if v is not None)
-    return (f"{step['step']}: {ctx.who(step.get('actor'))} -> {ctx.who(step.get('target'))}: "
-            f"{step.get('outcome', '')} {extra}").rstrip()
+    return ctx.d.trace_text(step)
 
 
 def _event_lines(ctx, e) -> list:
-    """[(source, text)] for one stored event."""
-    t, p, aud = e["type"], e["payload"], e.get("audience", "")
-    w = ctx.who
-    if t == "PhaseChanged":
-        lab = _label(p["phase"], p["day_number"], p["night_number"])[0]
-        return [("PHASE", f"{lab} begins [{p.get('reason', '?')}], ends {fmt_ts(int(p['ends_at'] * 1000))}")]
-    if t == "Announcement":
-        return [("ADMIN" if aud == "admin" else "SYSTEM", p.get("text", ""))]
-    if t == "PrivateMessage":
-        return [("SYSTEM", f"to {w(ctx.audience_slot(aud))}: {p.get('text', '')}")]
-    if t == "PlayerDied":
-        return [("DEATH", f"{w(p['slot'])} died ({', '.join(p.get('causes', []))})")]
-    if t == "VoteUpdated":
-        if p.get("target") is None:
-            return [("VOTE", f"{w(p['voter'])} withdrew their vote")]
-        return [("VOTE", f"{w(p['voter'])} voted for {w(p['target'])} ({p.get('count')}/{p.get('threshold')})")]
-    if t == "TrialStarted":
-        return [("VERDICT", f"Trial begins: {w(p['defendant'])} has {int(p.get('defense_s', 0))}s to defend")]
-    if t == "VerdictOpened":
-        return [("VERDICT", f"Verdict opens on {w(p['defendant'])}")]
-    if t == "VerdictRecorded":
-        return [("VERDICT", f"{w(ctx.audience_slot(aud))} votes {p.get('verdict')}")]
-    if t == "VerdictsRevealed":
-        out = [("VERDICT", f"Result on {w(p['defendant'])}: {p.get('guilty')} guilty, {p.get('innocent')} innocent")]
-        out += [("VERDICT", f"  {w(v['slot'])}: {v['verdict']}") for v in p.get("votes", [])]
-        return out
-    if t == "RoleAssigned":
-        return [("SYSTEM", f"{w(p['slot'])} is {p.get('role')} ({p.get('alignment')})")]
-    if t == "RosterPosted":
-        return [("SYSTEM", "Roster: " + ", ".join(f"#{r['slot']:02d}" for r in p.get("roster", []))
-                 + "; role list: " + ", ".join(p.get("rolelist", [])))]
-    if t == "JailStarted":
-        return [("SYSTEM", f"Jail: {w(p['jailor'])} jails {w(p['prisoner'])}")]
-    if t == "JailEnded":
-        return [("SYSTEM", f"Jail ends: prisoner {w(p['prisoner'])}")]
-    if t == "StatusChanged":
-        return [("SYSTEM", f"Game status: {p.get('status')}")]
-    if t == "GameEnded":
-        return [("SYSTEM", f"Game over: {faction_title(p.get('faction'))} ({p.get('reason')})")]
-    if t == "AdminAction":
-        who_ = w(p["slot"]) if p.get("slot") is not None else "not a player"
-        return [("ADMIN", f"user {p.get('user_id')} ({who_}) ran `{p.get('command')}` {p.get('args', '')}".rstrip())]
-    if t == "NightTrace":
-        return [("TRACE", _trace_text(ctx, s)) for s in p.get("steps", [])]
-    return []
+    return ctx.d.event_lines(e)
 
 
 def _command_lines(ctx, c) -> list:
-    t, p, ok = c["type"], c.get("payload") or {}, c.get("accepted", True)
-    w = ctx.who
-    if t == "SubmitAction":
-        tgt = w(p.get("target_slot")) if p.get("target_slot") is not None else "nobody"
-        msg = f"{w(p.get('actor_slot'))} chose {p.get('ability_id')} -> {tgt} (active={p.get('active', True)})"
-        return [("ACTION", msg if ok else f"REJECTED: {msg}: {c.get('reason')}")]
-    if not ok:
-        src = {"Vote": "VOTE", "Verdict": "VERDICT"}.get(t, "SYSTEM")
-        return [(src, f"REJECTED {t} {json.dumps(p, sort_keys=True)}: {c.get('reason')}")]
-    if t == "AdvancePhase" and p.get("force"):
-        return [("SYSTEM", "phase advanced early by an admin command")]
-    if t in ("Abort", "Resume", "Pause", "Abandon", "BeginGame"):
-        return [("SYSTEM", f"command {t} {json.dumps(p, sort_keys=True)}")]
-    return []  # accepted votes, verdicts and timer advances are already visible as events
+    return ctx.d.command_lines(c)
 
 
 def _chat_text(ctx, row, originals) -> str:

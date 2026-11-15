@@ -1,0 +1,120 @@
+00:00:00 000007 Pre-game GAME start seed=7 players=6
+00:00:00 000007 Pre-game GAME settings afternoon_s=120.0 day_s=240.0 defense_s=30.0 night_s=120.0 noon_s=180.0 stalemate_cycles=3 verdict_s=20.0
+00:00:00 000007 Pre-game GAME role list jailor, godfather, TS, TK, MK, RT
+00:00:00 000007 Pre-game GAME table #01 Sim4 Mafioso MAFIA
+00:00:00 000007 Pre-game GAME table #02 Sim5 Sheriff TOWN
+00:00:00 000007 Pre-game GAME table #03 Sim1 Escort TOWN
+00:00:00 000007 Pre-game GAME table #04 Sim3 Godfather MAFIA
+00:00:00 000007 Pre-game GAME table #05 Sim6 Jailor TOWN
+00:00:00 000007 Pre-game GAME table #06 Sim2 Veteran TOWN
+00:00:00 000007 Pre-game DM #01 Sim4 (Mafioso) <- 'You are the Mafioso. Kill everyone who would oppose the Mafia.'
+00:00:00 000007 Pre-game DM #02 Sim5 (Sheriff) <- 'You are the Sheriff. Lynch every criminal and evildoer.'
+00:00:00 000007 Pre-game DM #03 Sim1 (Escort) <- 'You are the Escort. Lynch every criminal and evildoer.'
+00:00:00 000007 Pre-game DM #04 Sim3 (Godfather) <- 'You are the Godfather. Kill everyone who would oppose the Mafia.'
+00:00:00 000007 Pre-game DM #05 Sim6 (Jailor) <- 'You are the Jailor. Lynch every criminal and evildoer.'
+00:00:00 000007 Pre-game DM #06 Sim2 (Veteran) <- 'You are the Veteran. Lynch every criminal and evildoer.'
+00:00:00 000007 Pre-game GAME Roster: #01, #02, #03, #04, #05, #06; role list: Jailor, Godfather, TS, TK, MK, RT
+00:00:00 000007 Day 1 PHASE Day 1 begins [game_start], ends 1970-01-01 00:02:00
+00:00:00 000007 Day 1 POST town 'Day 1 begins. There is no voting on the first day. The Jailor may choose a prisoner.'
+00:00:00 000007 Day 1 PROMPT #05 Sim6 (Jailor) <- Choose who to jail tonight options=['#01 Sim4 (Mafioso)', '#02 Sim5 (Sheriff)', '#03 Sim1 (Escort)', '#04 Sim3 (Godfather)', '#06 Sim2 (Veteran)']
+00:00:00 000007 Day 1 ACTION #05 Sim6 (Jailor) chose jail -> #06 Sim2 (Veteran) (active=True)
+00:02:00 000007 Night 1 PHASE Night 1 begins [day1_timer], ends 1970-01-01 00:04:00
+00:02:00 000007 Night 1 GAME Jail: #05 Sim6 (Jailor) jails #06 Sim2 (Veteran)
+00:02:00 000007 Night 1 DM #06 Sim2 (Veteran) <- 'You have been hauled off to jail! Speak with the Jailor in the Jail channel.'
+00:02:00 000007 Night 1 DM #05 Sim6 (Jailor) <- 'You jailed Sim2 (#6). Messages you send me here are relayed anonymously.'
+00:02:00 000007 Night 1 PROMPT #01 Sim4 (Mafioso) <- Choose who to kill options=['#02 Sim5 (Sheriff)', '#03 Sim1 (Escort)', '#05 Sim6 (Jailor)', '#06 Sim2 (Veteran)']
+00:02:00 000007 Night 1 PROMPT #02 Sim5 (Sheriff) <- Investigate someone options=['#01 Sim4 (Mafioso)', '#03 Sim1 (Escort)', '#04 Sim3 (Godfather)', '#05 Sim6 (Jailor)', '#06 Sim2 (Veteran)']
+00:02:00 000007 Night 1 PROMPT #03 Sim1 (Escort) <- Distract someone options=['#01 Sim4 (Mafioso)', '#02 Sim5 (Sheriff)', '#04 Sim3 (Godfather)', '#05 Sim6 (Jailor)', '#06 Sim2 (Veteran)']
+00:02:00 000007 Night 1 PROMPT #04 Sim3 (Godfather) <- Order the kill options=['#02 Sim5 (Sheriff)', '#03 Sim1 (Escort)', '#05 Sim6 (Jailor)', '#06 Sim2 (Veteran)']
+00:02:00 000007 Night 1 PROMPT #05 Sim6 (Jailor) <- Execute your prisoner options=toggle
+00:02:00 000007 Night 1 PROMPT #06 Sim2 (Veteran) <- Go on alert tonight (1 left) options=toggle
+00:02:00 000007 Night 1 ACTION #02 Sim5 (Sheriff) chose investigate -> #06 Sim2 (Veteran) (active=True)
+00:02:00 000007 Night 1 ACTION #03 Sim1 (Escort) chose roleblock -> #01 Sim4 (Mafioso) (active=True)
+00:02:00 000007 Night 1 ACTION #04 Sim3 (Godfather) chose order -> #02 Sim5 (Sheriff) (active=True)
+00:02:00 000007 Night 1 ACTION #05 Sim6 (Jailor) chose execute -> nobody (active=False)
+00:04:00 000007 Night 1 TRACE jail: #05 Sim6 (Jailor) -> #06 Sim2 (Veteran): jailed execute=False
+00:04:00 000007 Night 1 TRACE roleblock: #03 Sim1 (Escort) -> #01 Sim4 (Mafioso): blocked
+00:04:00 000007 Night 1 TRACE mafia_chain: #04 Sim3 (Godfather) -> #02 Sim5 (Sheriff): godfather_order godfather=4 mafioso=1 mafioso_available=False
+00:04:00 000007 Night 1 TRACE visit: #02 Sim5 (Sheriff) -> #06 Sim2 (Veteran): target_in_jail ability=investigate
+00:04:00 000007 Night 1 TRACE visit: #03 Sim1 (Escort) -> #01 Sim4 (Mafioso): ok ability=roleblock
+00:04:00 000007 Night 1 TRACE visit: #04 Sim3 (Godfather) -> #02 Sim5 (Sheriff): ok ability=mafia_kill
+00:04:00 000007 Night 1 TRACE attack: #04 Sim3 (Godfather) -> #02 Sim5 (Sheriff): success cause=MAFIA level=1
+00:04:00 000007 Night 1 TRACE death: #02 Sim5 (Sheriff) -> -: died causes=['MAFIA']
+00:04:00 000007 Night 1 GAME Jail ends: prisoner #06 Sim2 (Veteran)
+00:04:00 000007 Night 1 DM #01 Sim4 (Mafioso) <- 'Someone occupied your night. You were roleblocked!'
+00:04:00 000007 Night 1 DM #02 Sim5 (Sheriff) <- 'Your target was in jail.'
+00:04:00 000007 Day 2 PHASE Day 2 begins [night_resolved], ends 1970-01-01 00:08:00
+00:04:00 000007 Day 2 DEATH #02 Sim5 (Sheriff) died: MAFIA by #04 Sim3 (Godfather); role revealed
+00:04:00 000007 Day 2 PROMPT #05 Sim6 (Jailor) <- Choose who to jail tonight options=['#01 Sim4 (Mafioso)', '#03 Sim1 (Escort)', '#04 Sim3 (Godfather)', '#06 Sim2 (Veteran)']
+00:08:00 000007 Day 2 Noon PHASE Day 2 Noon begins [day_timer], ends 1970-01-01 00:11:00
+00:11:00 000007 Day 2 Afternoon PHASE Day 2 Afternoon begins [noon_no_trial], ends 1970-01-01 00:13:00
+00:13:00 000007 Night 2 PHASE Night 2 begins [afternoon_timer], ends 1970-01-01 00:15:00
+00:13:00 000007 Night 2 PROMPT #01 Sim4 (Mafioso) <- Choose who to kill options=['#03 Sim1 (Escort)', '#05 Sim6 (Jailor)', '#06 Sim2 (Veteran)']
+00:13:00 000007 Night 2 PROMPT #03 Sim1 (Escort) <- Distract someone options=['#01 Sim4 (Mafioso)', '#04 Sim3 (Godfather)', '#05 Sim6 (Jailor)', '#06 Sim2 (Veteran)']
+00:13:00 000007 Night 2 PROMPT #04 Sim3 (Godfather) <- Order the kill options=['#03 Sim1 (Escort)', '#05 Sim6 (Jailor)', '#06 Sim2 (Veteran)']
+00:13:00 000007 Night 2 PROMPT #06 Sim2 (Veteran) <- Go on alert tonight (1 left) options=toggle
+00:13:00 000007 Night 2 ACTION #01 Sim4 (Mafioso) chose kill -> #03 Sim1 (Escort) (active=True)
+00:13:00 000007 Night 2 ACTION #03 Sim1 (Escort) chose roleblock -> #06 Sim2 (Veteran) (active=True)
+00:13:00 000007 Night 2 ACTION #06 Sim2 (Veteran) chose alert -> nobody (active=False)
+00:15:00 000007 Night 2 TRACE roleblock: #03 Sim1 (Escort) -> #06 Sim2 (Veteran): immune
+00:15:00 000007 Night 2 TRACE mafia_chain: #01 Sim4 (Mafioso) -> #03 Sim1 (Escort): mafioso_choice godfather=4 mafioso=1 mafioso_available=True
+00:15:00 000007 Night 2 TRACE visit: #01 Sim4 (Mafioso) -> #03 Sim1 (Escort): ok ability=mafia_kill
+00:15:00 000007 Night 2 TRACE visit: #03 Sim1 (Escort) -> #06 Sim2 (Veteran): ok ability=roleblock
+00:15:00 000007 Night 2 TRACE attack: #01 Sim4 (Mafioso) -> #03 Sim1 (Escort): success cause=MAFIA level=1
+00:15:00 000007 Night 2 TRACE death: #03 Sim1 (Escort) -> -: died causes=['MAFIA']
+00:15:00 000007 Night 2 DM #03 Sim1 (Escort) <- 'Your target's role cannot be roleblocked.'
+00:15:00 000007 Day 3 PHASE Day 3 begins [night_resolved], ends 1970-01-01 00:19:00
+00:15:00 000007 Day 3 DEATH #03 Sim1 (Escort) died: MAFIA by #01 Sim4 (Mafioso); role revealed
+00:15:00 000007 Day 3 PROMPT #05 Sim6 (Jailor) <- Choose who to jail tonight options=['#01 Sim4 (Mafioso)', '#04 Sim3 (Godfather)', '#06 Sim2 (Veteran)']
+00:15:00 000007 Day 3 ACTION #05 Sim6 (Jailor) chose jail -> #04 Sim3 (Godfather) (active=True)
+00:19:00 000007 Day 3 Noon PHASE Day 3 Noon begins [day_timer], ends 1970-01-01 00:22:00
+00:19:00 000007 Day 3 Noon VOTE #04 Sim3 (Godfather) voted for #01 Sim4 (Mafioso) (1/3)
+00:19:00 000007 Day 3 Noon VOTE #05 Sim6 (Jailor) voted for #01 Sim4 (Mafioso) (2/3)
+00:19:00 000007 Day 3 Noon VOTE #06 Sim2 (Veteran) voted for #01 Sim4 (Mafioso) (3/3)
+00:19:00 000007 Day 3 Defense PHASE Day 3 Defense begins [trial_majority], ends 1970-01-01 00:19:30
+00:19:00 000007 Day 3 Defense VOTE Trial begins: #01 Sim4 (Mafioso) has 30s to defend
+00:19:30 000007 Day 3 Verdict PHASE Day 3 Verdict begins [defense_timer], ends 1970-01-01 00:19:50
+00:19:30 000007 Day 3 Verdict VOTE Verdict opens on #01 Sim4 (Mafioso)
+00:19:30 000007 Day 3 Verdict VOTE #04 Sim3 (Godfather) votes innocent
+00:19:30 000007 Day 3 Verdict VOTE #05 Sim6 (Jailor) votes innocent
+00:19:30 000007 Day 3 Verdict VOTE #06 Sim2 (Veteran) votes innocent
+00:19:50 000007 Day 3 Verdict VOTE Result on #01 Sim4 (Mafioso): 0 guilty, 3 innocent
+00:19:50 000007 Day 3 Verdict VOTE   #04 Sim3 (Godfather): innocent
+00:19:50 000007 Day 3 Verdict VOTE   #05 Sim6 (Jailor): innocent
+00:19:50 000007 Day 3 Verdict VOTE   #06 Sim2 (Veteran): innocent
+00:19:50 000007 Day 3 Noon PHASE Day 3 Noon begins [verdict_pardon], ends 1970-01-01 00:22:50
+00:19:50 000007 Day 3 Noon VOTE #01 Sim4 (Mafioso) voted for #06 Sim2 (Veteran) (1/3)
+00:19:50 000007 Day 3 Noon VOTE #04 Sim3 (Godfather) voted for #06 Sim2 (Veteran) (2/3)
+00:19:50 000007 Day 3 Noon VOTE #05 Sim6 (Jailor) voted for #06 Sim2 (Veteran) (3/3)
+00:19:50 000007 Day 3 Defense PHASE Day 3 Defense begins [trial_majority], ends 1970-01-01 00:20:20
+00:19:50 000007 Day 3 Defense VOTE Trial begins: #06 Sim2 (Veteran) has 30s to defend
+00:20:20 000007 Day 3 Verdict PHASE Day 3 Verdict begins [defense_timer], ends 1970-01-01 00:20:40
+00:20:20 000007 Day 3 Verdict VOTE Verdict opens on #06 Sim2 (Veteran)
+00:20:20 000007 Day 3 Verdict VOTE #01 Sim4 (Mafioso) votes guilty
+00:20:20 000007 Day 3 Verdict VOTE #04 Sim3 (Godfather) votes innocent
+00:20:20 000007 Day 3 Verdict VOTE #05 Sim6 (Jailor) votes guilty
+00:20:40 000007 Day 3 Verdict VOTE Result on #06 Sim2 (Veteran): 2 guilty, 1 innocent
+00:20:40 000007 Day 3 Verdict VOTE   #01 Sim4 (Mafioso): guilty
+00:20:40 000007 Day 3 Verdict VOTE   #04 Sim3 (Godfather): innocent
+00:20:40 000007 Day 3 Verdict VOTE   #05 Sim6 (Jailor): guilty
+00:20:40 000007 Day 3 Verdict DEATH #06 Sim2 (Veteran) died: LYNCHED; role revealed
+00:20:40 000007 Day 3 Afternoon PHASE Day 3 Afternoon begins [verdict_guilty], ends 1970-01-01 00:22:40
+00:20:40 000007 Day 3 Afternoon ACTION #05 Sim6 (Jailor) chose jail -> #04 Sim3 (Godfather) (active=True)
+00:22:40 000007 Night 3 PHASE Night 3 begins [afternoon_timer], ends 1970-01-01 00:24:40
+00:22:40 000007 Night 3 GAME Jail: #05 Sim6 (Jailor) jails #04 Sim3 (Godfather)
+00:22:40 000007 Night 3 DM #04 Sim3 (Godfather) <- 'You have been hauled off to jail! Speak with the Jailor in the Jail channel.'
+00:22:40 000007 Night 3 DM #05 Sim6 (Jailor) <- 'You jailed Sim3 (#4). Messages you send me here are relayed anonymously.'
+00:22:40 000007 Night 3 PROMPT #01 Sim4 (Mafioso) <- Choose who to kill options=['#05 Sim6 (Jailor)']
+00:22:40 000007 Night 3 PROMPT #04 Sim3 (Godfather) <- Order the kill options=['#05 Sim6 (Jailor)']
+00:22:40 000007 Night 3 PROMPT #05 Sim6 (Jailor) <- Execute your prisoner options=toggle
+00:22:40 000007 Night 3 ACTION #01 Sim4 (Mafioso) chose kill -> #05 Sim6 (Jailor) (active=True)
+00:22:40 000007 Night 3 ACTION #04 Sim3 (Godfather) chose order -> #05 Sim6 (Jailor) (active=True)
+00:24:40 000007 Night 3 TRACE jail: #05 Sim6 (Jailor) -> #04 Sim3 (Godfather): jailed execute=False
+00:24:40 000007 Night 3 TRACE mafia_chain: #01 Sim4 (Mafioso) -> #05 Sim6 (Jailor): mafioso_choice godfather=4 mafioso=1 mafioso_available=True
+00:24:40 000007 Night 3 TRACE visit: #01 Sim4 (Mafioso) -> #05 Sim6 (Jailor): ok ability=mafia_kill
+00:24:40 000007 Night 3 TRACE attack: #01 Sim4 (Mafioso) -> #05 Sim6 (Jailor): success cause=MAFIA level=1
+00:24:40 000007 Night 3 TRACE death: #05 Sim6 (Jailor) -> -: died causes=['MAFIA']
+00:24:40 000007 Night 3 GAME Jail ends: prisoner #04 Sim3 (Godfather)
+00:24:40 000007 Day 4 PHASE Day 4 begins [night_resolved], ends 1970-01-01 00:28:40
+00:24:40 000007 Day 4 DEATH #05 Sim6 (Jailor) died: MAFIA by #01 Sim4 (Mafioso); role revealed
+00:24:40 000007 Day 4 GAME Game over: Mafia (the Mafia took the town)

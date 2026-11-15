@@ -2,8 +2,6 @@ import os
 import discord
 from dotenv import load_dotenv
 
-load_dotenv()
-
 # The permissions the bot needs (keep in sync with REQUIRED_PERMS in monke/adapter/setup_cog.py).
 # Attach Files was added in 1.0.1 for the post-game archive upload. Administrator is deliberately NOT included.
 PERMISSIONS = discord.Permissions(
@@ -23,6 +21,7 @@ class Check(discord.Client):
     async def on_ready(self):
         print("Logged in as:", self.user, "| application id:", self.user.id)
         print("Servers the bot is in:", [(g.name, g.id) for g in self.guilds] or "NONE")
+        print("Permissions integer:", PERMISSIONS.value)
         print("Invite URL:", discord.utils.oauth_url(
             self.user.id,
             permissions=PERMISSIONS,
@@ -30,4 +29,6 @@ class Check(discord.Client):
         ))
         await self.close()
 
-Check(intents=discord.Intents.none()).run(os.environ["DISCORD_TOKEN"])
+if __name__ == "__main__":
+    load_dotenv()
+    Check(intents=discord.Intents.none()).run(os.environ["DISCORD_TOKEN"])

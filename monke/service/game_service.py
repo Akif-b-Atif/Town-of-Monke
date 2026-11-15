@@ -16,6 +16,7 @@ from ..engine import GameState, Settings, handle, new_game, prompt_event, prompt
 from ..engine import commands as K
 from ..engine import events as E
 from ..adapter import strings as S
+from ..debug import NullSink
 from ..errors import Rejected
 from .scheduler import Scheduler
 from .store import Store
@@ -45,7 +46,7 @@ class Presenter(Protocol):
 
 class GameService:
     def __init__(self, store: Store, presenter: Presenter, clock: Callable[[], float] = time.time,
-                 post_game_seconds: float = 300.0, archive=None):
+                 post_game_seconds: float = 300.0, archive=None, sink=None):
         self.store, self.presenter, self.clock = store, presenter, clock
         self.archive = archive  # ArchiveService; None keeps the old v1 cleanup (used by tests)
         self.post_game_seconds = post_game_seconds
@@ -53,6 +54,8 @@ class GameService:
         self._locks: dict = {}
         self.scheduler = Scheduler(self._on_timer, clock)
         self._bg: set = set()
+        self.sink = sink or NullSink()  # DBG-6: where debug output goes (nothing by default)
+        self.sink.bind(self)
 
     # ---------------------------------------------------------------- lookups
     def lock(self, guild_id: int) -> asyncio.Lock:
@@ -84,6 +87,7 @@ class GameService:
                                      names=names)
             await self.store.save_game(state)
             self.games[guild_id] = state
+            self.sink.game_started(state)
             try:
                 await self.presenter.assign_slot_roles(state)
                 failed = await self.presenter.send_role_dms(state, events)
@@ -120,6 +124,7 @@ class GameService:
             result = handle(state, cmd, self.clock())
         except Rejected as rej:
             await self._log_rejected(state, cmd, rej)  # ARC-4: rejected commands are recorded too
+            self.sink.rejected(state, cmd, rej.reason)
             raise
         except Exception as exc:
             await self._fail_closed(guild_id, state, exc)
@@ -129,6 +134,7 @@ class GameService:
             return state  # stale timer or no-op
         await self.store.save_game(new_state, events, commands=[self._command_row(cmd, True)])
         self.games[guild_id] = new_state
+        self.sink.commit(state, new_state, cmd, events)
         self._rearm(new_state)
         try:
             await self.presenter.apply_permissions(new_state)
@@ -166,11 +172,13 @@ class GameService:
         async with self.lock(guild_id):
             state = self.games.get(guild_id)
             if state is not None:
+                self.sink.note("ADMIN", f"user {user_id} ran {command} {args}".rstrip(), state)
                 await self._append_admin_event(state, user_id, command, args)
 
     def _rearm(self, state: GameState) -> None:
         if state.status == C.RUNNING:
             self.scheduler.arm(state.game_id, state.phase_ends_at, state.phase_id)
+            self.sink.note("TIMER", f"armed phase {state.phase_id} for {max(0.0, state.phase_ends_at - self.clock()):.0f}s", state)
         else:
             self.scheduler.cancel(state.game_id)
 
@@ -178,6 +186,7 @@ class GameService:
         state = self.find_by_game_id(game_id)
         if state is None:
             return
+        self.sink.note("TIMER", f"fired for phase {phase_id}", state)
         try:
             await self.submit(state.guild_id, K.AdvancePhase(phase_id))
         except Rejected:
@@ -186,6 +195,7 @@ class GameService:
     # ---------------------------------------------------------------- failure handling
     async def _fail_closed(self, guild_id: int, state: GameState, exc: Exception) -> None:
         log.exception("engine exception game=%s seed=%s phase=%s", state.game_id, state.rng_seed, state.phase)
+        self.sink.note("ERROR", f"engine exception: {exc!r}; game paused", state)
         try:
             paused = handle(state, K.Pause(f"engine error: {exc!r}"), self.clock()).state
         except Exception:
@@ -266,6 +276,7 @@ class GameService:
     async def recover(self) -> None:
         for state in await self.store.load_games((C.RUNNING, C.PAUSED, C.ENDED)):
             self.games[state.guild_id] = state
+            self.sink.note("RECOVER", f"loaded game in status {state.status}", state)
             if state.status == C.ENDED:  # resume the archive from its recorded state (ARC-10)
                 job = await self.store.get_job(state.game_id) if self.archive is not None else None
                 self._spawn(self._post_game_cleanup(state.guild_id, state.game_id, immediate=job is not None))
