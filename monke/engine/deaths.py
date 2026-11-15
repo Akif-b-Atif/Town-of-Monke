@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from .. import constants as C
+from ..names import fmt_player
 from ..roles import get_def
 from . import events as E
 
@@ -27,7 +28,7 @@ def kill(s, slot: int, causes: list) -> E.Event:
     }
     d = get_def(p.role_id)
     how = " and ".join(CAUSE_TEXT[c] for c in causes)
-    text = f"Player {slot} was {how}. They were the {d.name}." if causes != [C.ABANDONED] else \
-        f"Player {slot} {how}. They were the {d.name}."
+    text = f"{fmt_player(s, slot)} was {how}. They were the {d.name}." if causes != [C.ABANDONED] else \
+        f"{fmt_player(s, slot)} {how}. They were the {d.name}."
     return E.ev(E.T.PLAYER_DIED, slot=slot, user_id=p.user_id, role_id=d.id, role=d.name,
                 causes=list(causes), text=text)

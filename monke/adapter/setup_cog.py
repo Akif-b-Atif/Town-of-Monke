@@ -9,11 +9,13 @@ from discord.ext import commands
 
 from ..engine import Settings
 from ..service.store import GuildConfig
+from . import strings as S
+from .planner import commands_channel_plan
 
 log = logging.getLogger("monke.setup")
 
 REQUIRED_PERMS = ("manage_roles", "manage_channels", "manage_messages", "view_channel", "send_messages",
-                  "embed_links", "read_message_history", "use_application_commands")
+                  "embed_links", "attach_files", "read_message_history", "use_application_commands")  # ARC-15: Attach Files
 CHANNELS = (("monke-commands", "commands"), ("town-centre", "town"), ("mafia-lair", "mafia"),
             ("jail", "jail"), ("graveyard", "graveyard"))
 
@@ -24,6 +26,28 @@ class SetupError(Exception):
 
 def _find_role(guild, rid, name):
     return (rid and guild.get_role(rid)) or discord.utils.get(guild.roles, name=name)
+
+
+def commands_overwrites(guild, admin_role) -> dict:
+    """Permissions for #monke-commands (ADM-1), built from the planner's static plan."""
+    plan = commands_channel_plan()
+    return {
+        guild.default_role: discord.PermissionOverwrite(**plan["everyone"]),
+        admin_role: discord.PermissionOverwrite(**plan["admin"]),
+        guild.me: discord.PermissionOverwrite(**plan["bot"], manage_channels=True),
+    }
+
+
+async def apply_commands_channel_permissions(guild: discord.Guild, cfg: GuildConfig) -> None:
+    """Re-apply the #monke-commands plan to an existing server (called at startup, ADM-1)."""
+    ch = guild.get_channel(cfg.commands_channel_id)
+    admin = guild.get_role(cfg.admin_role_id)
+    if ch is None or admin is None:
+        return
+    try:
+        await ch.edit(overwrites=commands_overwrites(guild, admin), reason="Town of Monke permissions")
+    except discord.HTTPException:
+        log.exception("could not update #monke-commands permissions in guild %s", guild.id)
 
 
 async def ensure_structures(guild: discord.Guild, store) -> GuildConfig:
@@ -53,9 +77,10 @@ async def ensure_structures(guild: discord.Guild, store) -> GuildConfig:
     for name, key in CHANNELS:
         existing = (old and guild.get_channel(getattr(old, f"{key}_id" if key != "commands" else "commands_channel_id"))) \
             or discord.utils.get(cat.text_channels, name=name)
-        ow = dict(hidden)
         if key == "commands":
-            ow[admin] = discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True)
+            ow = commands_overwrites(guild, admin)
+        else:
+            ow = dict(hidden)
         ch = existing or await cat.create_text_channel(name, overwrites=ow)
         if existing:
             await ch.edit(overwrites=ow)
@@ -78,15 +103,20 @@ class SetupCog(commands.Cog):
             cfg = await ensure_structures(ctx.guild, self.bot.store)
         except SetupError as e:
             return await ctx.reply(str(e))
-        await ctx.reply(f"Setup complete. Give players' host the **Monke Admin** role and run games in <#{cfg.commands_channel_id}>.\n"
-                        "Server owners and Administrators can see every channel, so they should not play.")
+        msg = S.SETUP_COMPLETE.format(commands_channel_id=cfg.commands_channel_id)
+        admin_role = ctx.guild.get_role(cfg.admin_role_id)
+        if admin_role is not None and not admin_role.members:
+            msg += "\n" + S.NO_ADMINS
+        await ctx.reply(msg)
 
     @commands.command(name="teardown")
     @commands.guild_only()
     @commands.has_guild_permissions(manage_guild=True)
-    async def teardown_cmd(self, ctx):
+    async def teardown_cmd(self, ctx, *, flags: str = ""):
         if (g := self.bot.service.get(ctx.guild.id)) and g.status in ("STARTING", "RUNNING", "PAUSED"):
             return await ctx.reply("A game is running. Use `monke abort` first.")
+        if await self.bot.store.pending_archive_games(ctx.guild.id) and "--force" not in flags.lower().split():
+            return await ctx.reply(S.TEARDOWN_PENDING)  # ARC-15
         cfg = await self.bot.store.get_config(ctx.guild.id)
         if cfg is None:
             return await ctx.reply("Nothing to tear down.")
@@ -103,3 +133,6 @@ class SetupCog(commands.Cog):
             await ctx.reply("Teardown complete.")
         except discord.HTTPException:
             pass
+
+
+

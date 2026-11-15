@@ -19,6 +19,7 @@ class Player:
     alive: bool = True
     death: Optional[dict] = None
     state: dict = field(default_factory=dict)
+    display_name: str = ""  # NAM-1: sanitised at game start, never re-read
 
 
 @dataclass

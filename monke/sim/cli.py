@@ -27,6 +27,14 @@ def random_tokens(n: int, rng: random.Random) -> list:
             continue
 
 
+def _check_reasons(events: list) -> None:
+    """TRN-1: every PhaseChanged event carries a reason code and a ctx dict."""
+    for e in events:
+        if e.type == "PhaseChanged":
+            assert e.payload.get("reason"), f"phase change without a reason: {e.payload}"
+            assert isinstance(e.payload.get("ctx"), dict), "phase change without ctx"
+
+
 def _check_invariants(s: GameState) -> None:
     again = GameState.from_dict(json.loads(json.dumps(s.to_dict())))
     assert again == s, "state does not round-trip through JSON"
@@ -88,14 +96,18 @@ def run_game(seed: int, n: int = None) -> GameState:
     assert sum(p.role_id == "jailor" for p in s.players.values()) == 1
     assert sum(p.role_id == "godfather" for p in s.players.values()) == 1
     now = 0.0
-    s = handle(s, K.BeginGame(), now).state
+    res = handle(s, K.BeginGame(), now)
+    s = res.state
+    _check_reasons(res.events)
     steps = 0
     while s.status != C.ENDED:
         steps += 1
         assert steps < 3000, "game did not terminate"
         s = _play(s, rng, now)
         now = s.phase_ends_at
-        s = handle(s, K.AdvancePhase(s.phase_id), now).state
+        res = handle(s, K.AdvancePhase(s.phase_id), now)
+        s = res.state
+        _check_reasons(res.events)
         _check_invariants(s)
     assert s.winning_faction in ("TOWN", "MAFIA", "SERIAL_KILLER", "DRAW")
     return s

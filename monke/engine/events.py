@@ -33,6 +33,8 @@ class T:
     JAIL_STARTED = "JailStarted"
     JAIL_ENDED = "JailEnded"
     STATUS = "StatusChanged"
+    NIGHT_TRACE = "NightTrace"  # ARC-5, audience admin: archive only
+    ADMIN_ACTION = "AdminAction"  # ARC-6, audience admin: archive only
 
 
 @dataclass
