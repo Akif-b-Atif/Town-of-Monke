@@ -1,5 +1,7 @@
 import asyncio
 
+from .helpers import key_text
+
 import pytest
 
 from monke import constants as C
@@ -24,7 +26,7 @@ class FakePresenter:
     async def render(self, state, events): self.rendered.extend(e.type for e in events)
     async def reconcile(self, state): pass
     async def cleanup(self, state): pass
-    async def notify_admin(self, guild_id, text): self.admin.append(text)
+    async def notify_admin(self, guild_id, key, **vars): self.admin.append(key_text(key, **vars))
 
 
 def with_store(tmp_path, fn):

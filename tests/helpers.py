@@ -33,10 +33,35 @@ def run_night(actions=(), prisoner=None, cast=None, mutate=None):
     return r.state, r.events
 
 
-def msgs(events, slot):
-    return [e.payload["text"] for e in events if e.type == "PrivateMessage" and e.audience == f"slot:{slot}"]
+def words(state, e) -> str:
+    """The text of a PrivateMessage/Announcement event, worded by the shipped flavour (variant 0)."""
+    from monke.compose import Composer
+    from monke.text.bank import default_bank
+    p = e.payload
+    return Composer(default_bank(), fixed=True).t(state, p["text_key"], **p.get("vars", {}))
+
+
+def key_text(key, **vars) -> str:
+    from monke.compose import Composer
+    from monke.text.bank import default_bank
+    return Composer(default_bank(), fixed=True).t(None, key, **vars)
+
+
+def msgs(events, slot, state=None):
+    return [words(state, e) for e in events if e.type == "PrivateMessage" and e.audience == f"slot:{slot}"]
+
+
+def keys(events, slot):
+    """The text keys of the private messages a player received."""
+    return [e.payload["text_key"] for e in events if e.type == "PrivateMessage" and e.audience == f"slot:{slot}"]
 
 
 def dead(s):
     return sorted(sl for sl, p in s.players.items() if not p.alive and p.role_id != "jester" or
                   (p.role_id == "jester" and not p.alive and p.death))
+
+
+def private(events, slot):
+    """(text key, vars) of each private message a player received, in order."""
+    return [(e.payload["text_key"], e.payload.get("vars", {})) for e in events
+            if e.type == "PrivateMessage" and e.audience == f"slot:{slot}"]

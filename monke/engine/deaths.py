@@ -1,23 +1,14 @@
 from __future__ import annotations
 
 from .. import constants as C
-from ..names import fmt_player
 from ..roles import get_def
 from . import events as E
 
-CAUSE_TEXT = {
-    C.MAFIA_KILL: "killed by the Mafia",
-    C.SERIAL_KILLER: "killed by a Serial Killer",
-    C.VETERAN: "shot by a Veteran",
-    C.EXECUTED: "executed by the Jailor",
-    C.HAUNTED: "haunted by the Jester",
-    C.LYNCHED: "lynched by the town",
-    C.ABANDONED: "left the game",
-}
 
-
-def kill(s, slot: int, causes: list) -> E.Event:
-    """Mark a player dead and return the public PlayerDied event (victim's role is always revealed)."""
+def kill(s, slot: int, causes: list, where: str = "day") -> E.Event:
+    """Mark a player dead and return the PlayerDied event (the role is always revealed).
+    `where` is 'dawn' for night deaths (the dawn report tells the town) or 'day' (announced at once)."""
+    first = not any(not q.alive for q in s.players.values())
     p = s.players[slot]
     p.alive = False
     night = s.phase == C.NIGHT
@@ -27,8 +18,5 @@ def kill(s, slot: int, causes: list) -> E.Event:
         "causes": list(causes),
     }
     d = get_def(p.role_id)
-    how = " and ".join(CAUSE_TEXT[c] for c in causes)
-    text = f"{fmt_player(s, slot)} was {how}. They were the {d.name}." if causes != [C.ABANDONED] else \
-        f"{fmt_player(s, slot)} {how}. They were the {d.name}."
     return E.ev(E.T.PLAYER_DIED, slot=slot, user_id=p.user_id, role_id=d.id, role=d.name,
-                causes=list(causes), text=text)
+                causes=list(causes), where=where, first_death=first)

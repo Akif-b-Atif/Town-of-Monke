@@ -39,8 +39,23 @@ def state_label(state) -> str:
 class Describer:
     """Text for one game. `state` supplies names and roles (every person prints as '#04 Sam (Godfather)')."""
 
-    def __init__(self, state):
+    def __init__(self, state, bank=None):
+        from .compose import Composer
+        from .names import fmt_player
+        from .text.bank import default_bank
         self.state = state
+        # variant 0 of the shipped text: the archive and the console word a key the same way every time
+        self.composer = Composer(bank or default_bank(), namer=lambda st, slot, bold=False: fmt_player(st, slot),
+                                 fixed=True)
+
+    def text(self, p: dict) -> str:
+        """The words of an Announcement or PrivateMessage payload (a text key, or old-style stored text)."""
+        if "text_key" in p:
+            try:
+                return self.composer.t(self.state, p["text_key"], **(p.get("vars") or {}))
+            except Exception:
+                return f"[{p['text_key']}]"
+        return p.get("text", "")
 
     def who(self, slot) -> str:
         if slot is None:
@@ -72,9 +87,12 @@ class Describer:
             lab = label(p["phase"], p["day_number"], p["night_number"])[0]
             return [("PHASE", f"{lab} begins [{p.get('reason', '?')}], ends {fmt_ts(int(p['ends_at'] * 1000))}")]
         if t == "Announcement":
-            return [("ADMIN" if aud == "admin" else "SYSTEM", p.get("text", ""))]
+            return [("ADMIN" if aud == "admin" else "SYSTEM", self.text(p))]
         if t == "PrivateMessage":
-            return [("SYSTEM", f"to {w(self.audience_slot(aud))}: {p.get('text', '')}")]
+            return [("SYSTEM", f"to {w(self.audience_slot(aud))}: {self.text(p)}")]
+        if t == "DawnReport":
+            died = ", ".join(w(x) for x in p.get("deaths", [])) or "nobody"
+            return [("SYSTEM", f"Dawn of day {p.get('day')}: {died} died, {p.get('alive')} alive")]
         if t == "PlayerDied":
             return [("DEATH", f"{w(p['slot'])} died ({', '.join(p.get('causes', []))})")]
         if t == "VoteUpdated":

@@ -13,7 +13,10 @@ import discord
 from .. import constants as C
 from ..names import fmt_player
 from ..service.store import GuildConfig, Store
-from . import planner, strings as S, views
+from .. import compose as composer
+from ..text.bank import default_bank
+from ..text.keys import TEXT_KEYS
+from . import planner, views
 from ..debug import NullSink
 from .chatlog import flatten_post
 from .textutil import (MAX_CONTENT, MAX_EMBED_DESCRIPTION, MAX_EMBEDS_PER_MESSAGE, chunked, clock, rel,
@@ -25,16 +28,10 @@ NO_MENTIONS = discord.AllowedMentions.none()
 GAME_CHANNELS = ("town", "mafia", "jail", "graveyard")  # the four channels send_logged serves (XC-2)
 
 
-class _SafeFormat(dict):
-    """format_map helper: a missing key shows '?' instead of crashing the banner."""
-
-    def __missing__(self, key):
-        return "?"
-
-
 class DiscordPresenter:
-    def __init__(self, bot, store: Store):
+    def __init__(self, bot, store: Store, bank=None):
         self.bot, self.store = bot, store
+        self.composer = composer.Composer(bank or default_bank(), namer=self.name_of)  # TXT-2: the only text path
         self._applied: dict = {}
         self._names: dict = {}  # game_id -> {slot: live display name}, only a fallback for pre-NAM games
         self._banners: dict = {}  # guild_id -> last pinned phase banner message
@@ -140,19 +137,8 @@ class DiscordPresenter:
         for e in events:
             if e.type != "RoleAssigned":
                 continue
-            c, slot = e.payload, e.payload["slot"]
-            emb = discord.Embed(title=f"You are the {c['role']} (Player {slot})", color=discord.Color.dark_gold())
-            emb.add_field(name="Alignment", value=c["alignment"].title(), inline=True)
-            emb.add_field(name="Attack / Defense", value=f"{c['attack']} / {c['defense']}", inline=True)
-            emb.add_field(name="Objective", value=c["objective"], inline=False)
-            emb.add_field(name="Abilities", value=c["summary"], inline=False)
-            if c["special"]:
-                emb.add_field(name="Special", value=c["special"], inline=False)
-            if c["tips"]:
-                emb.add_field(name="Tip", value=c["tips"], inline=False)
-            if c["teammates"]:
-                emb.add_field(name="Your Mafia team", value="\n".join(
-                    f"{self.name_of(state, t['slot'])}: {t['role']}" for t in c["teammates"]), inline=False)
+            slot = e.payload["slot"]
+            emb = self._embed(self.composer.card(state, e.payload))
             if not await self._dm(state.players[slot].user_id, embed=emb):
                 failed.append(state.players[slot].user_id)
         return failed
@@ -184,17 +170,6 @@ class DiscordPresenter:
             channel = await self._channel(guild.id, key)
             await channel.edit(overwrites=ow, reason="Town of Monke permission sync")
             self._applied[(guild.id, key)] = sig
-
-    # ------------------------------------------------------------ event rendering
-    async def render(self, state, events: list) -> None:
-        for e in events:
-            fn = getattr(self, f"_r_{e.type}", None)
-            if fn is None:
-                continue
-            try:
-                await fn(state, e)
-            except Exception:
-                log.exception("rendering %s failed", e.type)
 
     # ------------------------------------------------------------ outbound posts (XC-2 to XC-4)
     @staticmethod
@@ -255,58 +230,87 @@ class DiscordPresenter:
                     log_.exception("could not record chat row")
         return sent
 
-    async def _post(self, state, audience: str, **kw) -> list:
-        embeds = [kw.pop("embed")] if "embed" in kw else list(kw.pop("embeds", []) or [])
-        content, view = kw.get("content"), kw.get("view")
-        if audience == "public":
-            return await self.send_logged("town", content, embeds, view, session=state)
-        if audience.startswith("alignment:"):
-            return await self.send_logged("mafia", content, embeds, view, session=state)
-        if audience == "admin":
-            # XC-6: admin-audience events feed the archive only while a game is live.
-            if state.status in (C.RUNNING, C.PAUSED):
-                log.info("admin-only event not shown (game %s)", state.game_id)
-                return []
-            await (await self._channel(state.guild_id, "commands")).send(  # allow-send: Monke Commands
-                content=content, embeds=embeds, allowed_mentions=NO_MENTIONS)
-            return []
-        if audience.startswith("slot:"):
-            slot = int(audience.split(":")[1])
-            dm = {k: v for k, v in (("content", content), ("view", view)) if v is not None}
-            if embeds:
-                dm["embeds"] = embeds
-            if not await self._dm(state.players[slot].user_id, **dm):
-                await self.notify_admin(state.guild_id, f"Could not DM <@{state.players[slot].user_id}>. "
-                                                        f"They must open their DMs and use `/resend`.")
-        return []
-
-    async def notify_admin(self, guild_id: int, text: str) -> None:
-        """Short, spoiler-safe notices in Monke Commands (XC-7)."""
+    async def notify_admin(self, guild_id: int, key: str, **vars) -> None:
+        """Short, spoiler-safe notices in Monke Commands (XC-7). `key` is a text key (or already-worded text)."""
+        state = self.bot.service.get(guild_id) if getattr(self.bot, "service", None) else None
+        text = self.composer.t(state, key, **vars) if key in TEXT_KEYS else key
         await (await self._channel(guild_id, "commands")).send(  # allow-send: Monke Commands
             text[:1900], allowed_mentions=NO_MENTIONS)
         self.sink.post(guild_id, "commands", text[:1900])
 
-    def _banner_text(self, state, p: dict) -> str:
-        """TRN-3: reason line, blank line, heading, deadline line (and votes needed at Noon)."""
-        ctx = dict(p.get("ctx") or {})
-        slot = ctx.get("target_slot")
-        ctx["target"] = self.name_of(state, slot) if slot is not None else "?"
-        reason = S.TRANSITION_LINES.get(p.get("reason"), S.UNKNOWN_REASON).format_map(_SafeFormat(ctx))
-        if ctx.get("admin_skip"):
-            reason = S.ADMIN_SKIP_PREFIX.format(name=ctx.get("admin_name") or "Admin") + " " + reason
-        heading = S.PHASE_TITLE.get(p["phase"], p["phase"].title()).format_map(
-            _SafeFormat(day=p["day_number"], night=p["night_number"]))
-        lines = [reason, "", f"{S.PHASE_EMOJI.get(p['phase'], '')} **{heading}**".strip(),
-                 S.BANNER_ENDS.format(rel=rel(p["ends_at"]), clock=clock(p["ends_at"]),
-                                      alive=len(state.alive_slots()))]
-        if p["phase"] == C.NOON and ctx.get("needed") is not None:
-            lines.append(S.BANNER_VOTES.format(needed=ctx["needed"]))
-        return "\n".join(lines)
+    # ------------------------------------------------------------ event rendering (TXT-2)
+    @staticmethod
+    def _embed(d: dict) -> discord.Embed:
+        color = composer.COLORS.get(d.get("color"), d.get("color") if isinstance(d.get("color"), int) else None)
+        emb = discord.Embed(title=d.get("title"), description=d.get("description"),
+                            color=discord.Color(color) if color is not None else None)
+        for name, value, inline in d.get("fields", []):
+            emb.add_field(name=name[:256], value=value[:1024], inline=inline)
+        if d.get("footer"):
+            emb.set_footer(text=d["footer"])
+        return emb
 
-    async def _r_PhaseChanged(self, state, e):
-        sent = await self._post(state, "public", content=self._banner_text(state, e.payload))
-        if not sent:
-            return
+    def _view(self, spec):
+        if spec is None:
+            return None
+        if spec[0] == "verdict":
+            return views.verdict_view(spec[1], spec[2], spec[3] if len(spec) > 3 else None)
+        return views.prompt_view(spec[1], spec[2], spec[3], spec[4])
+
+    async def render(self, state, events: list) -> None:
+        for e in events:
+            if e.type == "RoleAssigned":
+                continue  # role cards go out through send_role_dms, the start gate
+            try:
+                msgs = self.composer.compose(state, e)
+            except Exception:
+                log.exception("composing %s failed", e.type)
+                continue
+            for m in msgs:
+                try:
+                    await self._deliver(state, e, m)
+                except Exception:
+                    log.exception("rendering %s failed", e.type)
+
+    async def _deliver(self, state, e, m) -> list:
+        if m.meta.get("admin_only"):
+            if state.status in (C.RUNNING, C.PAUSED):  # XC-6: admin-audience events feed the archive only while live
+                log.info("admin-only event not shown (game %s)", state.game_id)
+                return []
+        if m.effect == "purge_jail":
+            try:
+                await (await self._channel(state.guild_id, "jail")).purge(limit=None)
+            except Exception:
+                log.exception("jail purge failed")
+            return []
+        embeds = [self._embed(m.embed)] if m.embed else []
+        view = self._view(m.view)
+        if m.target in GAME_CHANNELS:
+            sent = await self.send_logged(m.target, m.content or None, embeds, view, session=state,
+                                          mentions=m.mentions)
+            if m.effect == "banner" and sent:
+                await self._pin_banner(state, sent[0])
+            elif m.effect == "pin" and sent:
+                try:
+                    await sent[0].pin(reason="Town of Monke")
+                except discord.HTTPException:
+                    pass
+            return sent
+        if m.target == "commands":
+            await self.notify_admin(state.guild_id, m.content)
+            return []
+        if m.target.startswith("slot:"):
+            slot = int(m.target.split(":")[1])
+            dm = {k: v for k, v in (("content", m.content or None), ("view", view)) if v is not None}
+            if embeds:
+                dm["embeds"] = embeds
+            if m.view and m.view[0] == "prompt":
+                self.sink.prompt(state, slot, m.meta.get("label", ""), m.view[1]["options"])
+            if not await self._dm(state.players[slot].user_id, **dm):
+                await self.notify_admin(state.guild_id, self.composer.t(state, "admin.dm_failed", player=slot))
+        return []
+
+    async def _pin_banner(self, state, message) -> None:
         prev = self._banners.get(state.guild_id)
         if prev is not None:  # one pinned banner at a time; ignore pin failures such as the 50-pin cap
             try:
@@ -314,90 +318,10 @@ class DiscordPresenter:
             except discord.HTTPException:
                 pass
         try:
-            await sent[0].pin(reason="Town of Monke phase banner")
+            await message.pin(reason="Town of Monke phase banner")
         except discord.HTTPException:
             pass
-        self._banners[state.guild_id] = sent[0]
-
-    async def _r_Announcement(self, state, e):
-        await self._post(state, e.audience, content=e.payload["text"])
-
-    async def _r_PrivateMessage(self, state, e):
-        await self._post(state, e.audience, content=e.payload["text"])
-
-    async def _r_PlayerDied(self, state, e):
-        await self._post(state, "public", embed=discord.Embed(description=f"💀 {e.payload['text']}", color=discord.Color.dark_red()))
-        try:
-            await self.send_logged("graveyard", f"{self.name_of(state, e.payload['slot'])} has joined the graveyard.",
-                                   session=state)
-        except Exception:
-            log.exception("graveyard welcome failed")
-
-    async def _r_VoteUpdated(self, state, e):
-        p = e.payload
-        voter = self.name_of(state, p["voter"], bold=True)
-        if p["target"] is None:
-            text = f"{voter} withdrew their vote."
-        else:
-            text = f"{voter} voted for {self.name_of(state, p['target'], bold=True)}. ({p['count']}/{p['threshold']})"
-        await self._post(state, "public", content=text)
-
-    async def _r_TrialStarted(self, state, e):
-        d = e.payload["defendant"]
-        await self._post(state, "public", content=f"⚖️ {self.name_of(state, d, bold=True)} is on trial! Only they may speak "
-                                                  f"for {int(e.payload['defense_s'])} seconds.")
-
-    async def _r_VerdictOpened(self, state, e):
-        p = e.payload
-        await self._post(state, "public", content=f"Cast your verdict on {self.name_of(state, p['defendant'], bold=True)} "
-                                                  f"(ends <t:{int(p['ends_at'])}:R>).",
-                         view=views.verdict_view(p["game_id"], p["token"]))
-
-    async def _r_VerdictsRevealed(self, state, e):
-        p = e.payload
-        lines = [f"{self.name_of(state, v['slot'])}: {v['verdict']}" for v in p["votes"]]
-        await self._post(state, "public", embed=discord.Embed(
-            title=f"Verdict: {p['guilty']} guilty, {p['innocent']} innocent", description="\n".join(lines)))
-
-    async def _r_RosterPosted(self, state, e):
-        await self._fill_names(state)
-        roster = "\n".join(f"#{r['slot']} {self._plain_name(state, r['slot'])}".rstrip() for r in e.payload["roster"])
-        await self._post(state, "public", embed=discord.Embed(title=S.ROSTER_TITLE, description=roster)
-                         .add_field(name=S.ROSTER_ROLELIST, value=", ".join(e.payload["rolelist"]), inline=False)
-                         .set_footer(text=S.GAME_LOGGED))  # ARC-14
-
-    async def _r_GameEnded(self, state, e):
-        p = e.payload
-        title = {"DRAW": "It's a draw!", "ABORTED": "The game was aborted."}.get(p["faction"], f"{p['faction'].replace('_', ' ').title()} wins!")
-        lines = [f"{self.name_of(state, r['slot'], bold=True)}: {r['role']}" + ("" if r["alive"] else " ☠️") +
-                 (" 🏆" if r["slot"] in p["winners"] else "") for r in p["roles"]]
-        await self._post(state, "public", embed=discord.Embed(
-            title=title, description="\n".join(lines)).set_footer(text=f"{p['reason']} • after day {p['days']}"))
-
-    async def _r_PromptRequested(self, state, e):
-        p = e.payload
-        await self._fill_names(state)
-        names = {s: self.name_of(state, s) for s in p["options"]}
-        self.sink.prompt(state, int(e.audience.split(":")[1]), p["label"], p["options"])
-        current = ""
-        if p["kind"] == "toggle" and p["current_active"] is not None:
-            current = f"\n\nCurrent choice: **{'ON' if p['current_active'] else 'OFF'}**"
-        elif p["current_target"] is not None:
-            current = f"\n\nCurrent choice: **{self.name_of(state, p['current_target'])}**"
-        when = "tonight" if p["phase_kind"] == "NIGHT" else "today"
-        await self._post(state, e.audience, content=f"**{p['label']}** ({when})" + current,
-                         view=views.prompt_view(p, names))
-
-    async def _r_JailEnded(self, state, e):
-        try:
-            jail = await self._channel(state.guild_id, "jail")
-            await jail.purge(limit=None)
-        except Exception:
-            log.exception("jail purge failed")
-
-    async def _r_StatusChanged(self, state, e):
-        if e.payload["status"] == C.PAUSED:
-            await self.notify_admin(state.guild_id, S.GAME_PAUSED)
+        self._banners[state.guild_id] = message
 
     # ------------------------------------------------------------ archive (ARC-9 to ARC-11)
     async def lock_for_archive(self, state) -> None:
@@ -411,12 +335,15 @@ class DiscordPresenter:
         """Step 3: post one embed plus the zip(s) in Monke Commands, re-fetch each message and verify the
         attachments. Returns (message_ids, sha256_list). Raises if anything does not match."""
         channel = await self._channel(state.guild_id, "commands")
-        rows = "\n".join(f"#{r['slot']:02d} {r['name']}: {r['role']}, {r['fate']}" + (" 🏆" if r["winner"] else "")
-                         for r in summary["players"])
-        emb = discord.Embed(title=f"Game {state.game_id} archive", description=rows[:4000],
-                            color=discord.Color.dark_gold())
-        emb.add_field(name="Result", value=f"{summary['winner']}: {summary['reason']}"[:1000], inline=False)
-        emb.add_field(name="Length", value=f"{summary['duration_s'] // 60} min, {summary['days']} days", inline=True)
+        c, win = self.composer, self.composer.t(state, "ui.emoji.winner")
+        rows = "\n".join(c.t(state, "archive.embed.player", slot=f"{r['slot']:02d}", name=r["name"], role=r["role"],
+                             fate=r["fate"]) + (f" {win}" if r["winner"] else "") for r in summary["players"])
+        emb = discord.Embed(title=c.t(state, "archive.embed.title", game_id=state.game_id), description=rows[:4000],
+                            color=discord.Color(composer.COLORS["gold"]))
+        emb.add_field(name=c.t(state, "archive.embed.result"), value=f"{summary['winner']}: {summary['reason']}"[:1000],
+                      inline=False)
+        emb.add_field(name="\u200b", value=c.t(state, "archive.embed.length", minutes=summary["duration_s"] // 60,
+                                                days=summary["days"]), inline=True)
         ids, hashes = [], []
         for gi, group in enumerate(chunked(zips, 10)):
             kw = {"files": [discord.File(io.BytesIO(data), filename=name) for name, data in group],
@@ -465,7 +392,8 @@ class DiscordPresenter:
 
     async def send_separators(self, state, summary: dict) -> None:
         """Step 5: a DM separator for every participant. Failures are logged and ignored (ARC-11)."""
-        text = S.SEPARATOR.format(game_id=state.game_id, result=f"Result: {summary['winner']} ({summary['reason']})")
+        text = self.composer.t(state, "archive.separator", game_id=state.game_id,
+                               result=f"{summary['winner']} ({summary['reason']})")
         for p in state.players.values():
             await self._dm(p.user_id, content=text)
 

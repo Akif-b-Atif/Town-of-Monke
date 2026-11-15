@@ -1,6 +1,8 @@
 """ARC-3/4/6/9/10/12/13/15: recording, the fail-closed end sequence, retry, resume, prune, teardown guard.
 Real Store (in memory), real GameService and ArchiveService; only the Discord side is faked."""
 import asyncio
+
+from .helpers import key_text
 import io
 import time
 import zipfile
@@ -32,7 +34,7 @@ class FakePresenter:
     async def render(self, state, events): pass
     async def reconcile(self, state): pass
     async def cleanup(self, state): self.calls.append("cleanup")
-    async def notify_admin(self, guild_id, text): self.notices.append(text)
+    async def notify_admin(self, guild_id, key, **vars): self.notices.append(key_text(key, **vars))
 
     # --- the archive surface
     async def lock_for_archive(self, state): self.calls.append("lock")
@@ -158,7 +160,7 @@ def test_export_refuses_a_running_game():                                       
         except Rejected as r:
             return r.reason
 
-    assert asyncio.run(go()) == "Archives are only available after the game ends."
+    assert asyncio.run(go()) == "archive.live_refused"
 
 
 def test_next_game_waits_for_the_archive():
@@ -171,7 +173,7 @@ def test_next_game_waits_for_the_archive():
         except Rejected as r:
             return r.reason
 
-    assert "still being archived" in asyncio.run(go())
+    assert asyncio.run(go()) == "archive.still_running"
 
 
 def test_prune_only_touches_purged_games():                                         # ARC-13

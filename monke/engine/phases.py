@@ -7,7 +7,6 @@ from dataclasses import dataclass
 
 from .. import constants as C
 from ..errors import Rejected
-from ..names import fmt_player
 from ..roles import get_def, get_handler
 from ..roles.registry import has_role
 from . import commands as K
@@ -32,8 +31,9 @@ def _finalize(s: GameState, events: list) -> None:
         e.seq = s.event_log_seq
 
 
-def _announce(events: list, text: str, audience: str = E.PUBLIC) -> None:
-    events.append(E.ev(E.T.ANNOUNCEMENT, audience, text=text))
+def _announce(events: list, key: str, audience: str = E.PUBLIC, **vars) -> None:
+    """An announcement is a text key plus variables; only the renderer turns it into words (TXT-2)."""
+    events.append(E.ev(E.T.ANNOUNCEMENT, audience, text_key=key, vars=vars))
 
 
 def _enter(s: GameState, phase: str, now: float, duration: float, events: list, reason: str, **ctx) -> None:
@@ -68,10 +68,10 @@ def prompt_event(s: GameState, p: Player, prompt) -> E.Event:
         a = s.night_actions.get(p.slot)
         if a and a.ability_id == prompt.ability_id:
             cur_target, cur_active = a.target_slot, a.active
-    return E.ev(E.T.PROMPT, E.to_slot(p.slot), game_id=s.game_id, ability_id=prompt.ability_id,
-                kind=prompt.kind, options=list(prompt.options), label=prompt.label,
+    return E.ev(E.T.PROMPT, E.to_slot(p.slot), game_id=s.game_id, role_id=p.role_id, ability_id=prompt.ability_id,
+                kind=prompt.kind, options=list(prompt.options), uses_left=prompt.uses_left,
                 phase_kind=prompt.phase_kind, token=s.token_for(prompt.phase_kind),
-                current_target=cur_target, current_active=cur_active)
+                ends_at=s.phase_ends_at, current_target=cur_target, current_active=cur_active)
 
 
 def _emit_prompts(s: GameState, events: list) -> None:
@@ -99,7 +99,7 @@ def new_game(game_id: str, guild_id: int, user_ids: list, tokens: list, settings
     `names` maps user_id -> already-sanitised display name (NAM-1)."""
     settings.validate(strict)
     if len(set(user_ids)) != len(user_ids):
-        raise Rejected("Every player must be a distinct user.")
+        raise Rejected("error.distinct_players")
     canon = validate_rolelist(tokens, len(user_ids))
     rng = random.Random(seed)
     roles = generate_roles(canon, rng)
@@ -120,12 +120,10 @@ def new_game(game_id: str, guild_id: int, user_ids: list, tokens: list, settings
 def _begin(s: GameState, now: float, events: list) -> None:
     s.status = C.RUNNING
     s.day_number = 1
-    names = [get_def(t).name if has_role(t) else t for t in s.rolelist]
     events.append(E.ev(E.T.ROSTER, roster=[{"slot": p.slot, "user_id": p.user_id}
                                            for p in sorted(s.players.values(), key=lambda x: x.slot)],
-                       rolelist=names))
+                       rolelist=list(s.rolelist)))
     _enter(s, C.DAY_1, now, s.settings.day_s / 2, events, "game_start")
-    _announce(events, "Day 1 begins. There is no voting on the first day. The Jailor may choose a prisoner.")
     _emit_prompts(s, events)
 
 
@@ -154,9 +152,8 @@ def _start_night(s: GameState, now: float, events: list, reason: str) -> None:
     _enter(s, C.NIGHT, now, s.settings.night_s, events, reason)
     if pr is not None:
         events.append(E.ev(E.T.JAIL_STARTED, E.ADMIN, prisoner=pr, jailor=jailor.slot))
-        events.append(E.ev(E.T.PRIVATE, E.to_slot(pr), text="You have been hauled off to jail! Speak with the Jailor in the Jail channel."))
-        events.append(E.ev(E.T.PRIVATE, E.to_slot(jailor.slot),
-                           text=f"You jailed {fmt_player(s, pr)}. Messages you send me here are relayed anonymously."))
+        events.append(E.ev(E.T.PRIVATE, E.to_slot(pr), text_key="jail.prisoner.notified", vars={}))
+        events.append(E.ev(E.T.PRIVATE, E.to_slot(jailor.slot), text_key="jail.jailor.prompt", vars={"target": pr}))
     _emit_prompts(s, events)
 
 
@@ -166,7 +163,8 @@ def _start_trial(s: GameState, defendant: int, now: float, events: list) -> None
     _enter(s, C.TRIAL_DEFENSE, now, s.settings.defense_s, events, "trial_majority", target_slot=defendant,
            votes=sum(1 for t in s.votes.values() if t == defendant),
            needed=voting.threshold(len(s.alive_slots())))
-    events.append(E.ev(E.T.TRIAL_STARTED, defendant=defendant, defense_s=s.settings.defense_s))
+    events.append(E.ev(E.T.TRIAL_STARTED, defendant=defendant, defense_s=s.settings.defense_s,
+                       voters=sorted(v for v, t in s.votes.items() if t == defendant)))
 
 
 def _start_verdict(s: GameState, now: float, events: list) -> None:
@@ -186,7 +184,7 @@ def _resolve_verdict(s: GameState, now: float, events: list) -> None:
                        guilty=len(guilty), innocent=len(innocent)))
     s.trial, s.votes = None, {}
     if len(guilty) > len(innocent):
-        events.append(deaths.kill(s, d, [C.LYNCHED]))
+        events.append(deaths.kill(s, d, [C.LYNCHED], where="day"))
         s.death_this_cycle = True
         p = s.players[d]
         if p.role_id == "jester":
@@ -194,7 +192,8 @@ def _resolve_verdict(s: GameState, now: float, events: list) -> None:
             p.state["haunt_targets"] = list(guilty)
             if d not in s.winners:
                 s.winners.append(d)
-            _announce(events, f"The Jester ({fmt_player(s, d)}) wins! The game continues.")
+            _announce(events, "jester.win_public", player=d)
+            events.append(E.ev(E.T.PRIVATE, E.to_slot(d), text_key="jester.haunt_prompt", vars={}))
         outcome = wincheck.check(s)
         if outcome:
             _end_game(s, outcome, events)
@@ -220,11 +219,13 @@ def _dawn(s: GameState, now: float, events: list) -> None:
     s.death_this_cycle = False
     s.day_number += 1
     s.innocent_verdicts_today, s.pardoned_today, s.votes, s.trial = 0, [], {}, None
+    events.extend(res.death_events)
+    events.append(E.ev(E.T.DAWN, day=s.day_number, deaths=[d for d, _ in res.deaths],
+                       alive=len(s.alive_slots()),
+                       stalemate_warning=(s.settings.stalemate_cycles > 0
+                                          and s.quiet_cycles == s.settings.stalemate_cycles - 1 and s.quiet_cycles > 0
+                                          and not res.deaths), quiet=s.quiet_cycles))
     _enter(s, C.DAY, now, s.settings.day_s, events, "night_resolved")
-    if res.death_events:
-        events.extend(res.death_events)
-    else:
-        _announce(events, "Nobody died last night.")
     outcome = wincheck.check(s)
     if outcome is None and s.quiet_cycles >= s.settings.stalemate_cycles:
         outcome = wincheck.Outcome("DRAW", [], f"{s.quiet_cycles} full cycles passed with no deaths")
@@ -264,11 +265,11 @@ def _advance(s: GameState, cmd: K.AdvancePhase, now: float, events: list) -> Non
 def _submit_action(s: GameState, cmd: K.SubmitAction, now: float, events: list) -> None:
     p = s.players.get(cmd.actor_slot)
     if p is None:
-        raise Rejected("You are not in this game.")
+        raise Rejected("error.not_in_game")
     h = get_handler(p.role_id)
     ab = h.ability(cmd.ability_id)
     if ab is None:
-        raise Rejected("Your role has no such ability.")
+        raise Rejected("error.no_ability")
     h.validate(s, p, ab, cmd.target_slot, cmd.active)
     if ab.phase == C.KIND_DAY:
         if ab.id == "jail":
@@ -292,39 +293,39 @@ def handle(state: GameState, cmd, now: float) -> Result:
         _advance(s, cmd, now, events)
     elif isinstance(cmd, K.Abort):
         if s.status == C.ENDED:
-            raise Rejected("The game has already ended.")
+            raise Rejected("error.game_ended")
         _end_game(s, wincheck.Outcome("ABORTED", [], cmd.reason), events)
     elif s.status == C.ENDED:
-        raise Rejected("The game has ended.")
+        raise Rejected("error.game_ended")
     elif isinstance(cmd, K.BeginGame):
         if s.status != C.STARTING:
-            raise Rejected("The game has already started.")
+            raise Rejected("error.already_started")
         _begin(s, now, events)
     elif isinstance(cmd, K.Resume):
         if s.status != C.PAUSED:
-            raise Rejected("The game is not paused.")
+            raise Rejected("error.not_paused")
         s.status = C.RUNNING
         s.phase_ends_at = now + (s.admin_pause_remaining or 1.0)
         s.admin_pause_remaining = None
         events.append(E.ev(E.T.STATUS, status=C.RUNNING))
-        _announce(events, "The game has resumed.")
+        _announce(events, "phase.resumed")
     elif isinstance(cmd, K.Pause):
         if s.status == C.RUNNING:
             s.admin_pause_remaining = max(1.0, s.phase_ends_at - now)
             s.status = C.PAUSED
             events.append(E.ev(E.T.STATUS, status=C.PAUSED, reason=cmd.reason))
-            _announce(events, "The game is paused.")
+            _announce(events, "phase.paused")
     elif isinstance(cmd, K.Abandon):
         p = s.players.get(cmd.slot)
         if p is None:
-            raise Rejected("No such player.")
+            raise Rejected("error.unknown_target")
         if p.alive and not p.state.get("inactive"):
             p.state["inactive"] = True
-            events.append(E.ev(E.T.ANNOUNCEMENT, E.ADMIN, text=f"{fmt_player(s, cmd.slot)} left the server and will die at the next dawn."))
+            _announce(events, "admin.player_left", E.ADMIN, player=cmd.slot)
     elif s.status == C.PAUSED:
-        raise Rejected("The game is paused.")
+        raise Rejected("error.paused")
     elif s.status == C.STARTING:
-        raise Rejected("The game hasn't started yet.")
+        raise Rejected("error.not_started")
     elif isinstance(cmd, K.Vote):
         defendant = voting.cast_vote(s, cmd.voter_slot, cmd.target_slot, events)
         if defendant is not None:

@@ -23,15 +23,15 @@ class Settings:
         if strict:
             for name in MINUTE_KEYS.values():
                 if getattr(self, name) < 120:
-                    raise Rejected(f"{name[:-2].capitalize()} must be at least 2 minutes.")
+                    raise Rejected("error.below_minimum", setting=name[:-2], time=120)
             for name in SECOND_KEYS.values():
                 if getattr(self, name) < 15:
-                    raise Rejected(f"{name[:-2].capitalize()} must be at least 15 seconds.")
+                    raise Rejected("error.below_minimum", setting=name[:-2], time=15)
         for name in list(MINUTE_KEYS.values()) + list(SECOND_KEYS.values()):
             if getattr(self, name) <= 0:
-                raise Rejected(f"{name[:-2].capitalize()} must be positive.")
+                raise Rejected("error.setting_invalid", causes=name[:-2])
         if self.stalemate_cycles < 1:
-            raise Rejected("Stalemate must be at least 1 cycle.")
+            raise Rejected("error.setting_invalid", causes="stalemate")
         return self
 
     @classmethod
@@ -43,7 +43,7 @@ class Settings:
             try:
                 val = float(raw)
             except ValueError:
-                raise Rejected(f"'{key}={raw}' is not a number.")
+                raise Rejected("error.bad_duration", causes=f"{key}={raw}")
             if k in MINUTE_KEYS:
                 setattr(s, MINUTE_KEYS[k], val * 60)
             elif k in SECOND_KEYS:
@@ -51,5 +51,5 @@ class Settings:
             elif k == "stalemate":
                 s.stalemate_cycles = int(val)
             else:
-                raise Rejected(f"Unknown setting '{key}'.")
+                raise Rejected("error.bad_option_nosuggest", causes=key)
         return s.validate()

@@ -15,7 +15,6 @@ from .. import constants as C
 from ..engine import GameState, Settings, handle, new_game, prompt_event, prompts_for
 from ..engine import commands as K
 from ..engine import events as E
-from ..adapter import strings as S
 from ..debug import NullSink
 from ..errors import Rejected
 from .scheduler import Scheduler
@@ -41,7 +40,7 @@ class Presenter(Protocol):
     async def render(self, state: GameState, events: list) -> None: ...
     async def reconcile(self, state: GameState) -> None: ...
     async def cleanup(self, state: GameState) -> None: ...
-    async def notify_admin(self, guild_id: int, text: str) -> None: ...
+    async def notify_admin(self, guild_id: int, key: str, **vars) -> None: ...
 
 
 class GameService:
@@ -79,9 +78,9 @@ class GameService:
         async with self.lock(guild_id):
             cur = self.games.get(guild_id)
             if cur is not None and cur.status in (C.STARTING, C.RUNNING, C.PAUSED):
-                raise Rejected("A game is already running in this server.")
+                raise Rejected("error.game_running")
             if cur is not None and cur.status == C.ENDED and self.archive is not None:
-                raise Rejected(S.ARCHIVE_STILL_RUNNING)  # the next game starts on empty chats
+                raise Rejected("archive.still_running")  # the next game starts on empty chats
             seed = secrets.randbits(48) if seed is None else seed
             state, events = new_game(secrets.token_hex(6), guild_id, user_ids, tokens, settings, seed, strict=strict,
                                      names=names)
@@ -119,7 +118,7 @@ class GameService:
     async def _commit(self, guild_id: int, cmd, already_locked: bool) -> GameState:
         state = self.games.get(guild_id)
         if state is None:
-            raise Rejected("There is no game in this server.")
+            raise Rejected("error.no_game")
         try:
             result = handle(state, cmd, self.clock())
         except Rejected as rej:
@@ -128,7 +127,7 @@ class GameService:
             raise
         except Exception as exc:
             await self._fail_closed(guild_id, state, exc)
-            raise Rejected("Something went wrong; the game has been paused for an admin.")
+            raise Rejected("error.generic")
         new_state, events = result.state, result.events
         if not events and new_state == state:
             return state  # stale timer or no-op
@@ -207,7 +206,7 @@ class GameService:
         try:
             await self.presenter.apply_permissions(paused)  # planner locks every channel when PAUSED
             # XC-7: no seed, no error text, no state. The details stay in the log file above.
-            await self.presenter.notify_admin(guild_id, S.ENGINE_ERROR_PAUSED.format(game_id=state.game_id))
+            await self.presenter.notify_admin(guild_id, "admin.engine_error", game_id=state.game_id)
         except Exception:
             log.exception("could not notify admin")
 
@@ -256,21 +255,21 @@ class GameService:
     async def export(self, guild_id: int, game_id: Optional[str] = None) -> str:
         """ARC-12 (`monke export [game_id]`). Retries a failed end sequence, or re-posts an old archive."""
         if self.archive is None:
-            raise Rejected("Archives are not enabled.")
+            raise Rejected("error.generic")
         cur = self.games.get(guild_id)
         if cur is not None and cur.status in (C.STARTING, C.RUNNING, C.PAUSED):
-            raise Rejected(S.EXPORT_LIVE_REFUSED)
+            raise Rejected("archive.live_refused")
         gid = game_id or (cur.game_id if cur is not None else await self.store.latest_game_id(guild_id))
         if gid is None:
-            raise Rejected("There is no game to export.")
+            raise Rejected("error.no_game")
         if cur is not None and cur.game_id == gid and cur.status == C.ENDED:
             if not await self.archive.run(cur):
-                raise Rejected(S.EXPORT_FAILED)
+                raise Rejected("archive.export.failed")
             if self.games.get(guild_id) is cur:
                 self.games.pop(guild_id, None)
-            return S.EXPORT_DONE_AND_CLEARED
+            return "archive.export.done_cleared"
         await self.archive.export_only(guild_id, gid)
-        return S.EXPORT_DONE
+        return "archive.export.done"
 
     # ---------------------------------------------------------------- recovery (section 11)
     async def recover(self) -> None:
@@ -287,7 +286,7 @@ class GameService:
                 log.exception("recovery reconcile failed")
             self._rearm(state)  # overdue timers fire immediately
             try:
-                await self.presenter.notify_admin(state.guild_id, "The bot restarted. The game continues.")
+                await self.presenter.notify_admin(state.guild_id, "admin.restarted")
             except Exception:
                 log.exception("restart notice failed")
 
@@ -295,12 +294,12 @@ class GameService:
     async def resend_prompts(self, guild_id: int, user_id: int) -> int:
         state = self.games.get(guild_id)
         if state is None:
-            raise Rejected("There is no game in this server.")
+            raise Rejected("error.no_game")
         slot = state.slot_of_user(user_id)
         if slot is None:
-            raise Rejected("You are not in this game.")
+            raise Rejected("error.not_in_game")
         events = [prompt_event(state, state.players[slot], p) for p in prompts_for(state, slot)]
         if not events:
-            raise Rejected("You have nothing to do right now.")
+            raise Rejected("error.nothing_to_do")
         await self.presenter.render(state, events)
         return len(events)

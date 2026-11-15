@@ -84,6 +84,19 @@ log file. **The console shows every role. Do not share it or stream it during a 
   console is a terminal and `NO_COLOR` is unset.
 - Watch a simulated game without Discord: `python -m monke.sim.cli --games 1 --seed 7 --players 8 --debug`.
 
+### Editing the text (`flavour.yaml`)
+
+Everything players read lives in **`flavour.yaml`** in the project folder: banners, death and dawn lines, vote messages,
+role descriptions, errors, admin replies. The engine contains no prose. A value is one text or a list of variants; the bot
+draws variants from a shuffle bag so a line does not repeat until the others have been used. Each key has a comment saying
+when it fires and which `{placeholders}` it may use.
+
+- Edit the file, then run `reloadtext` in Monke Commands (or restart the bot). An invalid file is rejected, the previous
+  text stays active and the problems are listed with their key and line. A key missing from your file falls back to the
+  shipped default (`monke/data/flavour_default.yaml`; do not edit that copy).
+- Keys that fire several times per game should have at least 3 variants; the checker warns when they have fewer.
+- `python -m monke.text.check` validates the file from the command line.
+
 ### Starting a game
 
 ```

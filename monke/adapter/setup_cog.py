@@ -9,7 +9,6 @@ from discord.ext import commands
 
 from ..engine import Settings
 from ..service.store import GuildConfig
-from . import strings as S
 from .planner import commands_channel_plan
 
 log = logging.getLogger("monke.setup")
@@ -21,7 +20,11 @@ CHANNELS = (("monke-commands", "commands"), ("town-centre", "town"), ("mafia-lai
 
 
 class SetupError(Exception):
-    pass
+    """Carries a text key and variables (the renderer words it)."""
+
+    def __init__(self, key: str, **vars):
+        super().__init__(key)
+        self.key, self.vars = key, vars
 
 
 def _find_role(guild, rid, name):
@@ -54,7 +57,7 @@ async def ensure_structures(guild: discord.Guild, store) -> GuildConfig:
     me = guild.me
     missing = [p for p in REQUIRED_PERMS if not getattr(me.guild_permissions, p)]
     if missing:
-        raise SetupError("I'm missing permissions: " + ", ".join(missing) + ". (Do not give me Administrator.)")
+        raise SetupError("admin.setup.missing_perms", causes=", ".join(missing))
     old = await store.get_config(guild.id)
     hidden = {guild.default_role: discord.PermissionOverwrite(view_channel=False),
               me: discord.PermissionOverwrite(view_channel=True, send_messages=True, manage_messages=True,
@@ -70,7 +73,7 @@ async def ensure_structures(guild: discord.Guild, store) -> GuildConfig:
         slot_roles.append(r)
     for r in [admin] + slot_roles:  # hierarchy: the bot must sit above every role it assigns
         if r >= me.top_role:
-            raise SetupError(f"Move my role above the '{r.name}' role (Server Settings > Roles), then run setup again.")
+            raise SetupError("admin.setup.hierarchy", role=r.name)
     cat = (old and guild.get_channel(old.category_id)) or discord.utils.get(guild.categories, name="Town of Monke") \
         or await guild.create_category("Town of Monke", overwrites=hidden)
     ids = {}
@@ -91,9 +94,15 @@ async def ensure_structures(guild: discord.Guild, store) -> GuildConfig:
     return cfg
 
 
+NO_MENTIONS = discord.AllowedMentions.none()
+
+
 class SetupCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+
+    def _t(self, key: str, **vars) -> str:
+        return self.bot.presenter.composer.t(None, key, **vars)
 
     @commands.command(name="setup")
     @commands.guild_only()
@@ -102,24 +111,24 @@ class SetupCog(commands.Cog):
         try:
             cfg = await ensure_structures(ctx.guild, self.bot.store)
         except SetupError as e:
-            return await ctx.reply(str(e))
-        msg = S.SETUP_COMPLETE.format(commands_channel_id=cfg.commands_channel_id)
+            return await ctx.reply(self._t(e.key, **e.vars), allowed_mentions=NO_MENTIONS)
+        msg = self._t("admin.setup.done") + "\n" + self._t("admin.setup.details", channel=cfg.commands_channel_id)
         admin_role = ctx.guild.get_role(cfg.admin_role_id)
         if admin_role is not None and not admin_role.members:
-            msg += "\n" + S.NO_ADMINS
-        await ctx.reply(msg)
+            msg += "\n" + self._t("admin.no_admins")
+        await ctx.reply(msg, allowed_mentions=NO_MENTIONS)  # FIX-9: setup replies never ping
 
     @commands.command(name="teardown")
     @commands.guild_only()
     @commands.has_guild_permissions(manage_guild=True)
     async def teardown_cmd(self, ctx, *, flags: str = ""):
         if (g := self.bot.service.get(ctx.guild.id)) and g.status in ("STARTING", "RUNNING", "PAUSED"):
-            return await ctx.reply("A game is running. Use `monke abort` first.")
+            return await ctx.reply(self._t("admin.teardown.running"), allowed_mentions=NO_MENTIONS)
         if await self.bot.store.pending_archive_games(ctx.guild.id) and "--force" not in flags.lower().split():
-            return await ctx.reply(S.TEARDOWN_PENDING)  # ARC-15
+            return await ctx.reply(self._t("admin.teardown.pending"), allowed_mentions=NO_MENTIONS)  # ARC-15
         cfg = await self.bot.store.get_config(ctx.guild.id)
         if cfg is None:
-            return await ctx.reply("Nothing to tear down.")
+            return await ctx.reply(self._t("admin.teardown.nothing"), allowed_mentions=NO_MENTIONS)
         for cid in (cfg.commands_channel_id, cfg.town_id, cfg.mafia_id, cfg.jail_id, cfg.graveyard_id, cfg.category_id):
             ch = ctx.guild.get_channel(cid)
             if ch and ch.id != ctx.channel.id:
@@ -130,7 +139,7 @@ class SetupCog(commands.Cog):
                 await r.delete(reason="Town of Monke teardown")
         await self.bot.store.delete_config(ctx.guild.id)
         try:
-            await ctx.reply("Teardown complete.")
+            await ctx.reply(self._t("admin.teardown.done"), allowed_mentions=NO_MENTIONS)
         except discord.HTTPException:
             pass
 

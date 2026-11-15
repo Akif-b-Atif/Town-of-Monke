@@ -4,11 +4,7 @@ from monke import constants as C
 from monke.engine import handle
 from monke.engine import commands as K
 from monke.errors import Rejected
-from tests.helpers import dead, make_state, msgs, run_night
-
-
-def has(texts, fragment):
-    return any(fragment in t for t in texts)
+from tests.helpers import dead, keys, make_state, private, run_night
 
 
 def test_mafioso_kills_unprotected_town():
@@ -20,14 +16,14 @@ def test_mafioso_kills_unprotected_town():
 def test_doctor_heals_mafia_target():
     s, ev = run_night([(7, "kill", 3), (4, "heal", 3)])
     assert dead(s) == []
-    assert has(msgs(ev, 4), "attacked")
-    assert has(msgs(ev, 3), "nursed you back")
-    assert has(msgs(ev, 7), "healed")
+    assert "attack.doctor_target_attacked" in keys(ev, 4)
+    assert "attack.saved_target" in keys(ev, 3)
+    assert "attack.target_healed" in keys(ev, 7)
 
 
 def test_basic_cannot_beat_basic_defense():
     s, ev = run_night([(7, "kill", 9)])  # Mafia vs Serial Killer
-    assert dead(s) == [] and has(msgs(ev, 7), "too strong")
+    assert dead(s) == [] and "attack.too_strong" in keys(ev, 7)
     s, _ = run_night([(9, "kill", 6)])  # SK vs Godfather
     assert dead(s) == []
 
@@ -36,14 +32,14 @@ def test_escort_blocks_doctor_and_sheriff():
     s, _ = run_night([(5, "roleblock", 4), (4, "heal", 3), (7, "kill", 3)])
     assert dead(s) == [3]
     s, ev = run_night([(5, "roleblock", 3), (3, "investigate", 9)])
-    assert not has(msgs(ev, 3), "Your target, Player")
-    assert has(msgs(ev, 3), "roleblocked")
+    assert not any(k.startswith("sheriff.result") for k in keys(ev, 3))
+    assert "block.you_were_blocked" in keys(ev, 3)
 
 
 @pytest.mark.parametrize("target", [2, 1])
 def test_escort_cannot_block_veteran_or_jailor(target):
     s, ev = run_night([(5, "roleblock", target)])
-    assert has(msgs(ev, 5), "cannot be roleblocked")
+    assert "block.target_immune" in keys(ev, 5)
 
 
 def test_veteran_alert_shoots_visitors_only():
@@ -65,7 +61,7 @@ def test_blocked_sk_kills_escort_jailed_sk_kills_jailor():
 def test_visitors_to_prisoner_fail():
     s, ev = run_night([(4, "heal", 3), (7, "kill", 3), (8, "investigate", 3)], prisoner=3)
     assert dead(s) == []
-    assert has(msgs(ev, 4), "in jail") and has(msgs(ev, 7), "in jail") and has(msgs(ev, 8), "in jail")
+    assert all("jail.target_in_jail" in keys(ev, n) for n in (4, 7, 8))
 
 
 def test_execution_beats_defense_and_disables_on_town():
@@ -155,7 +151,7 @@ def test_dead_player_cannot_act_and_mafia_cannot_target_mafia():
 
 def test_sheriff_and_consigliere_results():
     _, ev = run_night([(3, "investigate", 6), (8, "investigate", 6), (3, "investigate", 9)])
-    assert has(msgs(ev, 3), "Player 9, seems Guilty")  # latest action wins
+    assert ("sheriff.result.guilty", {"target": 9}) in private(ev, 3)  # latest action wins
     s, ev = run_night([(3, "investigate", 6), (8, "investigate", 6)])
-    assert has(msgs(ev, 3), "seems Innocent")  # Godfather looks innocent
-    assert has(msgs(ev, 8), "Godfather")
+    assert ("sheriff.result.innocent", {"target": 6}) in private(ev, 3)  # Godfather looks innocent
+    assert ("consig.result", {"target": 6, "role_id": "godfather"}) in private(ev, 8)

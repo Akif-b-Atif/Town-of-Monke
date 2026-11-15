@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import logging
 import os
+import pathlib
 import time
 
 import discord
 from discord.ext import commands, tasks
 
 from ..debug import NullSink
+from ..text.bank import load_for_use, load_text, default_bank
 from ..service.archive import ArchiveService
 from ..service.capture import ChatCapture
 from ..service.game_service import GameService
@@ -21,6 +23,9 @@ from .renderer import DiscordPresenter
 from .setup_cog import SetupCog, apply_commands_channel_permissions
 
 log = logging.getLogger("monke.bot")
+
+
+FLAVOUR_PATH = pathlib.Path(__file__).resolve().parents[2] / "flavour.yaml"
 
 
 class MonkeBot(commands.Bot):
@@ -37,6 +42,9 @@ class MonkeBot(commands.Bot):
         self.capture = ChatCapture(self.store)  # ARC-3: async queue between Discord events and SQLite
         self.presenter = DiscordPresenter(self, self.store)
         self.presenter.sink = self.sink
+        self.flavour_path = pathlib.Path(os.environ.get("MONKE_FLAVOUR") or FLAVOUR_PATH)
+        bank, _report, self.text_is_default = load_for_use(self.flavour_path)  # TXT-3: invalid text -> shipped default
+        self.presenter.composer.bank = bank
         self.archive = ArchiveService(self.store, self.presenter, self.capture,
                                       retention_days=int(os.environ.get("MONKE_ARCHIVE_DAYS", "7")), sink=self.sink)
         self.service = GameService(self.store, self.presenter, archive=self.archive, sink=self.sink)
@@ -123,3 +131,13 @@ class MonkeBot(commands.Bot):
         await self.capture.stop()  # flush queued chat rows before the database closes
         await super().close()
         await self.store.close()
+
+    def reload_text(self) -> tuple:
+        """TXT-3 / ADM2-4: swap in the edited file if it is valid; otherwise keep the previous text.
+        -> (ok, report)."""
+        bank, report = load_text(self.flavour_path, fallback=default_bank())
+        if bank is None:
+            return False, report
+        self.presenter.composer.bank = bank
+        self.text_is_default = False
+        return True, report

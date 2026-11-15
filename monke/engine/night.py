@@ -6,7 +6,6 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from .. import constants as C
-from ..names import fmt_player
 from ..roles import get_def, get_handler
 from . import deaths
 from . import events as E
@@ -49,8 +48,8 @@ def resolve(s, events: list) -> NightResult:
     players = s.players
     notes: dict = {}
 
-    def note(slot: int, text: str) -> None:
-        notes.setdefault(slot, []).append(text)
+    def note(slot: int, key: str, **vars) -> None:
+        notes.setdefault(slot, []).append((key, vars))
 
     trace: list = []  # ARC-5: ordered, structured steps. Data only; the archive builder writes the English.
 
@@ -103,12 +102,12 @@ def resolve(s, events: list) -> NightResult:
             continue  # the visit fails at N5
         tdef = get_def(players[t].role_id)
         if tdef.rb_immune:
-            note(slot, "Your target's role cannot be roleblocked.")
+            note(slot, "block.target_immune")
             T("roleblock", slot, t, "immune")
             continue
         cancelled.add(t)
         T("roleblock", slot, t, "blocked")
-        note(t, "Someone occupied your night. You were roleblocked!")
+        note(t, "sk.blocked_rampage" if tdef.id == "serial_killer" else "block.you_were_blocked")
         if tdef.id == "serial_killer":
             sk_counter.setdefault(t, []).append(slot)
 
@@ -127,6 +126,11 @@ def resolve(s, events: list) -> NightResult:
         a = actions.get(mf.slot)
         if a and a.ability_id == "kill" and a.target_slot is not None:
             executor, target = mf.slot, a.target_slot
+    if order is not None and gf:
+        if mf_ok:
+            note(mf.slot, "mafia.order_received", target=order)
+        else:
+            note(gf.slot, "mafia.godfather_takes_over")
     for p in (gf, mf):
         if p and p.slot in actions and actions[p.slot].ability_id in ("order", "kill"):
             del actions[p.slot]
@@ -152,7 +156,7 @@ def resolve(s, events: list) -> NightResult:
         if slot in cancelled or a.ability_id not in _VISIT_ABILITIES or a.target_slot is None:
             continue
         if prisoner is not None and a.target_slot == prisoner:
-            note(slot, "Your target was in jail.")
+            note(slot, "jail.target_in_jail")
             T("visit", slot, a.target_slot, "target_in_jail", ability=a.ability_id)
             continue
         visits.append(Visit(slot, a.target_slot, a.ability_id))
@@ -172,6 +176,7 @@ def resolve(s, events: list) -> NightResult:
             T("heal", v.actor, v.target, "healing")
             if v.actor == v.target:
                 players[v.actor].state["self_heals_left"] -= 1
+                note(v.actor, "doctor.self_heal_used")
 
     # N8 Attacks
     for v in visits:
@@ -184,11 +189,14 @@ def resolve(s, events: list) -> NightResult:
             attacks.append(atk(sk, e, C.SERIAL_KILLER))
     if prisoner is not None and players[prisoner].role_id == "serial_killer" and jailor:
         attacks.append(atk(prisoner, jailor.slot, C.SERIAL_KILLER))
+        note(prisoner, "sk.jailed_rampage")
     if exec_by is not None:
         attacks.append(atk(exec_by, prisoner, C.EXECUTED))
+        note(prisoner, "jailor.executed_notice")
     for slot, a in sorted(actions.items()):
         if a.ability_id == "haunt" and slot not in cancelled and a.target_slot is not None:
             attacks.append(atk(slot, a.target_slot, C.HAUNTED))
+            note(slot, "jester.haunt_done", target=a.target_slot)
             players[slot].state["haunt_available"] = False
 
     died: dict = {}
@@ -221,42 +229,45 @@ def resolve(s, events: list) -> NightResult:
             continue
         tdef = get_def(players[v.target].role_id)
         if players[v.actor].role_id == "consigliere":
-            note(v.actor, f"Your target, {fmt_player(s, v.target)}, is the {tdef.name}.")
+            note(v.actor, "consig.result", target=v.target, role_id=tdef.id)
             T("investigate", v.actor, v.target, "role_revealed", role=tdef.name)
         else:
-            note(v.actor, f"Your target, {fmt_player(s, v.target)}, seems {tdef.sheriff_result}.")
+            note(v.actor, "sheriff.result.innocent" if tdef.sheriff_result == "Innocent" else "sheriff.result.guilty",
+                 target=v.target)
             T("investigate", v.actor, v.target, "result", role=tdef.name, result=tdef.sheriff_result)
 
     # N10 Feedback
     for a in attacks:
         if not a.success and a.level < 3:
-            if a.reason == "saved":
-                note(a.attacker, "Your target was attacked but healed, so they survived.")
-            else:
-                note(a.attacker, "Your target was too strong to kill.")
+            note(a.attacker, "attack.target_healed" if a.reason == "saved" else "attack.too_strong")
+        elif a.success and a.cause == C.VETERAN:
+            note(a.attacker, "vet.shot_visitor")
     for v in visits:
         if v.ability == "heal" and v.target in attacked:
-            note(v.actor, "Your patient was attacked tonight!")
+            note(v.actor, "attack.doctor_target_attacked")
     for t in sorted(saved):
         if t not in died:
-            note(t, "You were attacked but somebody nursed you back to health!")
+            note(t, "attack.saved_target")
 
     # N11 Apply deaths (simultaneous)
     result = NightResult()
     for slot in sorted(died):
         causes = died[slot]
-        result.death_events.append(deaths.kill(s, slot, causes))
+        result.death_events.append(deaths.kill(s, slot, causes, where="dawn"))
         result.deaths.append((slot, causes))
         T("death", slot, None, "died", causes=list(causes))
         if C.EXECUTED in causes and get_def(players[slot].role_id).alignment == C.TOWN and exec_by is not None:
             players[exec_by].state["jailor_exec_disabled"] = True
+            note(exec_by, "jailor.exec_disabled")
     for slot in sorted(players):
         p = players[slot]
         if p.alive and p.state.get("inactive"):
-            result.death_events.append(deaths.kill(s, slot, [C.ABANDONED]))
+            result.death_events.append(deaths.kill(s, slot, [C.ABANDONED], where="dawn"))
             result.deaths.append((slot, [C.ABANDONED]))
             T("death", slot, None, "died", causes=[C.ABANDONED])
 
+    if prisoner is not None and players[prisoner].alive:
+        note(prisoner, "jail.release")
     events.append(E.ev(E.T.NIGHT_TRACE, E.ADMIN, night=s.night_number, steps=trace))
     if s.prisoner_slot is not None:
         events.append(E.ev(E.T.JAIL_ENDED, E.ADMIN, prisoner=s.prisoner_slot))
@@ -265,6 +276,6 @@ def resolve(s, events: list) -> NightResult:
     s.prisoner_slot = None
 
     for slot in sorted(notes):
-        for text in notes[slot]:
-            events.append(E.ev(E.T.PRIVATE, E.to_slot(slot), text=text))
+        for key, vars in notes[slot]:
+            events.append(E.ev(E.T.PRIVATE, E.to_slot(slot), text_key=key, vars=vars))
     return result

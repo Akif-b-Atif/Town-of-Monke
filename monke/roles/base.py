@@ -17,7 +17,6 @@ class AbilityDef:
     phase: str  # C.KIND_DAY | C.KIND_NIGHT
     targeting: str  # "single" | "toggle"
     self_allowed: bool = False
-    label: str = ""
 
 
 @dataclass(frozen=True)
@@ -34,10 +33,6 @@ class RoleDef:
     win_faction: str  # TOWN | MAFIA | SERIAL_KILLER | JESTER
     abilities: tuple = ()
     alert_defense: int = 0  # defense while an alert is active (Veteran)
-    objective: str = ""
-    summary: str = ""
-    special: str = ""
-    tips: str = ""
 
 
 @dataclass
@@ -45,8 +40,8 @@ class Prompt:
     ability_id: str
     kind: str  # "select" | "toggle"
     options: list
-    label: str
     phase_kind: str
+    uses_left: Optional[int] = None
 
 
 class RoleHandler:
@@ -80,8 +75,16 @@ class RoleHandler:
     def toggle_block_reason(self, state: "GameState", player: "Player", ability: AbilityDef) -> Optional[str]:
         return None
 
-    def label_for(self, state: "GameState", player: "Player", ability: AbilityDef) -> str:
-        return ability.label
+    def uses_left(self, state: "GameState", player: "Player", ability: AbilityDef) -> Optional[int]:
+        """Remaining uses to show on the prompt, or None for unlimited abilities."""
+        return None
+
+    @staticmethod
+    def next_chance(state: "GameState", ability: AbilityDef) -> dict:
+        """When the ability can next be used, as data the renderer words ('Night 2')."""
+        if ability.phase == C.KIND_NIGHT:
+            return {"when": "night", "night": state.night_number + 1}
+        return {"when": "day", "day": state.day_number + (1 if state.phase == C.NIGHT else 0)}
 
     @staticmethod
     def phase_ok(state: "GameState", ability: AbilityDef) -> bool:
@@ -92,34 +95,34 @@ class RoleHandler:
     def validate(self, state: "GameState", player: "Player", ability: AbilityDef,
                  target: Optional[int], active: bool) -> None:
         if state.status != C.RUNNING:
-            raise Rejected("The game is not running.")
+            raise Rejected("error.game_not_running")
         if not self.phase_ok(state, ability):
-            raise Rejected("You can't do that right now.")
+            raise Rejected("error.wrong_phase", causes=ability.phase, time=self.next_chance(state, ability))
         if not self.can_act(state, player, ability):
-            raise Rejected("You can't use that ability right now.")
+            raise Rejected("error.cant_use")
         if ability.targeting == "single":
             if target is not None and target not in self.valid_targets(state, player, ability):
-                raise Rejected("That is not a valid target.")
+                raise Rejected("error.unknown_target")
         elif ability.targeting == "toggle":
             if target is not None:
-                raise Rejected("That ability does not take a target.")
+                raise Rejected("error.no_target_needed")
             if active:
                 reason = self.toggle_block_reason(state, player, ability)
                 if reason:
-                    raise Rejected(reason)
+                    raise Rejected(reason)  # a text key
 
     def prompts(self, state: "GameState", player: "Player", phase_kind: str) -> list:
         out = []
         for ab in self.role.abilities:
             if ab.phase != phase_kind or not self.can_act(state, player, ab):
                 continue
-            label = self.label_for(state, player, ab)
+            uses = self.uses_left(state, player, ab)
             if ab.targeting == "toggle":
                 if self.toggle_block_reason(state, player, ab):
                     continue
-                out.append(Prompt(ab.id, "toggle", [], label, phase_kind))
+                out.append(Prompt(ab.id, "toggle", [], phase_kind, uses))
             elif ab.targeting == "single":
                 opts = self.valid_targets(state, player, ab)
                 if opts:
-                    out.append(Prompt(ab.id, "select", opts, label, phase_kind))
+                    out.append(Prompt(ab.id, "select", opts, phase_kind, uses))
         return out

@@ -4,32 +4,19 @@ from .. import constants as C
 from .base import AbilityDef, RoleDef, RoleHandler
 from .registry import get_def, register
 
-_OBJ = "Kill everyone who would oppose the Mafia."
-
 GODFATHER = RoleDef(
     "godfather", "Godfather", C.MAFIA, "LEADER", True, 1, 1, False, "Innocent", "MAFIA",
-    abilities=(AbilityDef("order", C.KIND_NIGHT, "single", label="Order the kill"),),
-    objective=_OBJ,
-    summary="Each night, order the Mafia kill. The Mafioso carries it out if he can; otherwise you do it yourself.",
-    special="You have Basic defense and appear Innocent to the Sheriff.",
-    tips="If you are jailed or roleblocked your order is void.",
+    abilities=(AbilityDef("order", C.KIND_NIGHT, "single"),),
 )
 
 MAFIOSO = RoleDef(
     "mafioso", "Mafioso", C.MAFIA, "MK", True, 1, 0, False, "Guilty", "MAFIA",
-    abilities=(AbilityDef("kill", C.KIND_NIGHT, "single", label="Choose who to kill"),),
-    objective=_OBJ,
-    summary="Carry out the Godfather's order. With no order, pick your own target.",
-    special="Your attack is Basic.",
-    tips="If the Godfather gives an order it overrides your choice.",
+    abilities=(AbilityDef("kill", C.KIND_NIGHT, "single"),),
 )
 
 CONSIGLIERE = RoleDef(
     "consigliere", "Consigliere", C.MAFIA, "MS", False, 0, 0, False, "Guilty", "MAFIA",
-    abilities=(AbilityDef("investigate", C.KIND_NIGHT, "single", label="Investigate someone"),),
-    objective=_OBJ,
-    summary="Each night, learn a player's exact role.",
-    tips="Share your findings in the Lair, not in town.",
+    abilities=(AbilityDef("investigate", C.KIND_NIGHT, "single"),),
 )
 
 

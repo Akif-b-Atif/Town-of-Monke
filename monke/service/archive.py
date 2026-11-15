@@ -9,7 +9,6 @@ import logging
 import time
 from datetime import datetime, timezone
 
-from ..adapter import strings as S
 from ..debug import NullSink
 from ..archive.builder import archive_summary, build_archive
 from ..archive.zipper import write_zips
@@ -46,9 +45,9 @@ class ArchiveService:
         zips = write_zips(files, f"monke-game-{gid}-{self._stamp()}", limit)
         return archive_summary(state, events), zips
 
-    async def _notify(self, guild_id: int, text: str) -> None:
+    async def _notify(self, guild_id: int, key: str, **vars) -> None:
         try:
-            await self.presenter.notify_admin(guild_id, text)
+            await self.presenter.notify_admin(guild_id, key, **vars)
         except Exception:
             log.exception("could not notify the admin")
 
@@ -83,7 +82,7 @@ class ArchiveService:
             except Exception as exc:
                 log.exception("archive failed before a verified upload (game %s); nothing was deleted", gid)
                 await self.store.save_job(gid, "FAILED", error=repr(exc)[:500])
-                await self._notify(guild, S.ARCHIVE_FAILED)
+                await self._notify(guild, "archive.failed")
                 return False
             # 4. purge: only ever reached after a verified upload
             self.sink.note("ARCHIVE", "purging game channels", state)
@@ -92,7 +91,7 @@ class ArchiveService:
             except Exception as exc:
                 log.exception("purge failed (game %s); the archive is safe in Monke Commands", gid)
                 await self.store.save_job(gid, "FAILED", error=repr(exc)[:500])
-                await self._notify(guild, S.ARCHIVE_PURGE_FAILED)
+                await self._notify(guild, "archive.purge_failed")
                 return False
             # 5. separators, 6. cleanup: best effort
             try:
@@ -112,12 +111,12 @@ class ArchiveService:
         """ARC-12: rebuild and post the zip for a finished game without touching any channel."""
         state = await self.store.load_game(game_id)
         if state is None or state.guild_id != guild_id:
-            raise Rejected("I have no game with that id.")
+            raise Rejected("error.no_such_game")
         job = await self.store.get_job(game_id)
         if job and job["state"] == "PURGED" and self.clock() - (job["updated_at"] or 0) > self.retention_days * 86400:
-            raise Rejected(f"That game is older than the {self.retention_days}-day retention window.")
+            raise Rejected("error.archive_expired", days=self.retention_days)
         try:
             summary, zips = await self._build(state)
         except AssertionError:
-            raise Rejected(S.EXPORT_LIVE_REFUSED)
+            raise Rejected("archive.live_refused")
         await self.presenter.upload_archive(state, summary, zips)

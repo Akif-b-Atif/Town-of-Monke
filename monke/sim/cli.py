@@ -44,15 +44,23 @@ def _check_invariants(s: GameState) -> None:
 
 
 class _Driver:
-    """Applies commands for the simulator and reports each one to the debug sink (DBG-1)."""
+    """Applies commands for the simulator. Every emitted event is rendered through the real text system with a
+    strict bank, so a missing key or a bad placeholder fails the run (TXT-5). Reports to the debug sink (DBG-1)."""
 
-    def __init__(self, sink=None):
+    def __init__(self, sink=None, seed: int = 0):
+        from ..compose import Composer
+        from ..text.bank import default_bank
         self.sink = sink
+        self.composer = Composer(default_bank(rng=random.Random(seed), strict=True))
+
+    def render(self, before, after, cmd, events, now) -> None:
+        rendered = {e.seq: self.composer.compose(after, e) for e in events}
+        if self.sink is not None:
+            self.sink.commit(before, after, cmd, events, now=now, deliver=True, rendered=rendered)
 
     def __call__(self, s: GameState, cmd, now: float) -> GameState:
         res = handle(s, cmd, now)
-        if self.sink is not None:
-            self.sink.commit(s, res.state, cmd, res.events, now=now, deliver=True)
+        self.render(s, res.state, cmd, res.events, now)
         return res.state
 
 
@@ -106,19 +114,18 @@ def run_game(seed: int, n: int = None, sink=None) -> GameState:
     rng = random.Random(seed)
     n = n or rng.randint(C.MIN_PLAYERS, C.MAX_PLAYERS)
     tokens = random_tokens(n, rng)
-    names = {1000 + i: f"Sim{i + 1}" for i in range(n)} if sink is not None else None
+    names = {1000 + i: f"Sim{i + 1}" for i in range(n)}
     s, role_events = new_game(f"{seed:06x}", 1, [1000 + i for i in range(n)], tokens, Settings(), seed,
                               names=names)
-    drv = _Driver(sink)
+    drv = _Driver(sink, seed)
     if sink is not None:
         sink.game_started(s, now=0.0)
-        sink.commit(s, s, K.BeginGame(), role_events, now=0.0, deliver=True)
+    drv.render(s, s, K.BeginGame(), role_events, 0.0)
     assert sum(p.role_id == "jailor" for p in s.players.values()) == 1
     assert sum(p.role_id == "godfather" for p in s.players.values()) == 1
     now = 0.0
     res = handle(s, K.BeginGame(), now)
-    if sink is not None:
-        sink.commit(s, res.state, K.BeginGame(), res.events, now=now, deliver=True)
+    drv.render(s, res.state, K.BeginGame(), res.events, now)
     s = res.state
     _check_reasons(res.events)
     steps = 0
@@ -128,8 +135,7 @@ def run_game(seed: int, n: int = None, sink=None) -> GameState:
         s = _play(s, rng, now, drv)
         now = s.phase_ends_at
         res = handle(s, K.AdvancePhase(s.phase_id), now)
-        if sink is not None:
-            sink.commit(s, res.state, K.AdvancePhase(s.phase_id), res.events, now=now, deliver=True)
+        drv.render(s, res.state, K.AdvancePhase(s.phase_id), res.events, now)
         s = res.state
         _check_reasons(res.events)
         _check_invariants(s)

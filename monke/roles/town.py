@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from .. import constants as C
+from ..errors import Rejected
 from .base import AbilityDef, RoleDef, RoleHandler
 from .registry import register
 
@@ -11,13 +12,9 @@ VETERAN_ALERT_DEFENSE = 1
 JAILOR = RoleDef(
     "jailor", "Jailor", C.TOWN, "LEADER", True, 3, 0, True, "Innocent", "TOWN",
     abilities=(
-        AbilityDef("jail", C.KIND_DAY, "single", label="Choose who to jail tonight"),
-        AbilityDef("execute", C.KIND_NIGHT, "toggle", label="Execute your prisoner"),
+        AbilityDef("jail", C.KIND_DAY, "single"),
+        AbilityDef("execute", C.KIND_NIGHT, "toggle"),
     ),
-    objective="Lynch every criminal and evildoer.",
-    summary="By day, pick a prisoner. At night you can talk to them anonymously and choose to execute them.",
-    special="Your attack is Unstoppable and ignores heals. Executing a Town member removes your execution for the rest of the game. You cannot be roleblocked.",
-    tips="Interrogate before you execute.",
 )
 
 
@@ -29,20 +26,16 @@ class JailorHandler(RoleHandler):
 
     def toggle_block_reason(self, state, player, ability):
         if player.state.get("jailor_exec_disabled"):
-            return "You executed a Town member and can no longer execute."
+            return "jailor.exec_disabled"
         if state.prisoner_slot is None:
-            return "You have no prisoner tonight."
+            return "error.no_prisoner"
         return None
 
 
 VETERAN = RoleDef(
     "veteran", "Veteran", C.TOWN, "TK", True, 2, 0, True, "Innocent", "TOWN",
-    abilities=(AbilityDef("alert", C.KIND_NIGHT, "toggle", label="Go on alert tonight"),),
+    abilities=(AbilityDef("alert", C.KIND_NIGHT, "toggle"),),
     alert_defense=VETERAN_ALERT_DEFENSE,
-    objective="Lynch every criminal and evildoer.",
-    summary="At night you may go on alert (limited uses). Everyone who visits you while on alert is shot.",
-    special="Your attack is Powerful. You cannot be roleblocked. Alerts: one per 5 players (minimum 1).",
-    tips="Alert on nights you expect to be targeted, but you cannot tell friend from foe.",
 )
 
 
@@ -54,29 +47,21 @@ class VeteranHandler(RoleHandler):
 
     def toggle_block_reason(self, state, player, ability):
         if player.state.get("alerts_left", 0) <= 0:
-            return "You have no alerts left."
+            return "vet.no_alerts"
         return None
 
-    def label_for(self, state, player, ability):
-        return f"{ability.label} ({player.state.get('alerts_left', 0)} left)"
+    def uses_left(self, state, player, ability):
+        return player.state.get("alerts_left", 0)
 
 
 SHERIFF = RoleDef(
     "sheriff", "Sheriff", C.TOWN, "TI", False, 0, 0, False, "Innocent", "TOWN",
-    abilities=(AbilityDef("investigate", C.KIND_NIGHT, "single", label="Investigate someone"),),
-    objective="Lynch every criminal and evildoer.",
-    summary="Each night, check whether a player seems Innocent or Guilty.",
-    special="The Godfather appears Innocent. Mafia and Serial Killers appear Guilty.",
-    tips="Share results carefully; the Mafia will claim your role.",
+    abilities=(AbilityDef("investigate", C.KIND_NIGHT, "single"),),
 )
 
 DOCTOR = RoleDef(
     "doctor", "Doctor", C.TOWN, "TP", False, 0, 0, False, "Innocent", "TOWN",
-    abilities=(AbilityDef("heal", C.KIND_NIGHT, "single", self_allowed=True, label="Heal someone"),),
-    objective="Lynch every criminal and evildoer.",
-    summary="Each night, heal one player. A healed player survives Basic and Powerful attacks.",
-    special="You may heal yourself once. You are told if your patient was attacked.",
-    tips="Healing the same person every night makes you predictable.",
+    abilities=(AbilityDef("heal", C.KIND_NIGHT, "single", self_allowed=True),),
 )
 
 
@@ -85,6 +70,11 @@ class DoctorHandler(RoleHandler):
 
     def init_state(self, state, player):
         return {"self_heals_left": 1}
+
+    def validate(self, state, player, ability, target, active):
+        if target == player.slot and player.state.get("self_heals_left", 0) <= 0:
+            raise Rejected("doctor.no_self_heal")
+        super().validate(state, player, ability, target, active)
 
     def valid_targets(self, state, player, ability):
         targets = super().valid_targets(state, player, ability)
@@ -95,11 +85,7 @@ class DoctorHandler(RoleHandler):
 
 ESCORT = RoleDef(
     "escort", "Escort", C.TOWN, "TS", False, 0, 0, True, "Innocent", "TOWN",
-    abilities=(AbilityDef("roleblock", C.KIND_NIGHT, "single", label="Distract someone"),),
-    objective="Lynch every criminal and evildoer.",
-    summary="Each night, distract one player. They cannot use their ability.",
-    special="You cannot be roleblocked. Some roles are immune to your distraction. A Serial Killer you block will attack you.",
-    tips="Blocking a suspected killer is risky: if it is the Serial Killer, you may die.",
+    abilities=(AbilityDef("roleblock", C.KIND_NIGHT, "single"),),
 )
 
 

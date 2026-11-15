@@ -1,0 +1,1118 @@
+# =============================================================================
+# TOWN OF MONKE - FLAVOUR TEXT (v1.1 default file)
+# =============================================================================
+# HOW TO EDIT
+#   * Every top-level key is one scenario. The banner comment above it says
+#     exactly when it is used and which {placeholders} it may contain.
+#   * A key holds either ONE string, or a LIST of variants (lines starting
+#     with "- "). With several variants the bot rotates through them without
+#     repeating until all have been used.
+#   * Add a variant: add a new "- " line. Remove one: delete the line, but
+#     keep at least the minimum noted in the banner.
+#   * Markdown works (**bold**, *italic*). "\n" makes a new line.
+#   * Only use the placeholders listed for that key. After editing, run
+#     /reloadtext. If something is wrong the bot tells you and keeps the
+#     old text.
+#   * Strings are in double quotes. If you need a double quote inside a
+#     string, write \" instead.
+# PLACEHOLDERS (availability depends on the key)
+#   {player} {target} {role} {alignment} {killer_role} {causes} {will} {note}
+#   {day} {night} {alive} {count} {needed} {time} {wiki}
+# =============================================================================
+
+
+# =============================================================================
+# SECTION 1: ROLE CARDS (sent by DM at game start and on /role)
+# Per role: intro (flavour + ability explanation + wiki link), goal, tips,
+# reveal (third person, used in death announcements), wiki (URL only).
+# Vars: intro/goal/tips use {wiki} only. reveal uses {player}.
+# =============================================================================
+
+# ----- JAILOR -----
+role.jailor.intro: "You are the **Jailor**, keeper of the dungeon beneath Monke Town. Each day you may choose one player to haul off to jail that night. Once they are locked up you can question them anonymously and, if you must, execute them. Execute a fellow Town member and you lose your executions for good.\nWiki: {wiki}"
+role.jailor.goal: "Lynch every criminal and evildoer."
+role.jailor.tips: "Your prisoner cannot use their ability, and nobody can hurt them tonight. Interrogate before you execute, and be very sure."
+role.jailor.reveal: "{player} was the **Jailor**, a merciless keeper of the town dungeon."
+role.jailor.wiki: "https://town-of-salem.fandom.com/wiki/Jailor"
+
+# ----- VETERAN -----
+role.veteran.intro: "You are the **Veteran**, a battle-scarred soldier who sleeps with one eye open. On any night you choose you may go on alert (you have a limited number of alerts). Anyone who visits you that night is shot, friend or foe.\nWiki: {wiki}"
+role.veteran.goal: "Lynch every criminal and evildoer."
+role.veteran.tips: "Alerts are limited, so save them for nights you expect visitors. Your own shots hit Town too."
+role.veteran.reveal: "{player} was the **Veteran**, a paranoid soldier who trusted nobody."
+role.veteran.wiki: "https://town-of-salem.fandom.com/wiki/Veteran"
+
+# ----- SHERIFF -----
+role.sheriff.intro: "You are the **Sheriff**, the law of Monke Town. Each night you may investigate one player and learn whether they seem innocent or suspicious. Beware: not every guilty soul looks guilty.\nWiki: {wiki}"
+role.sheriff.goal: "Lynch every criminal and evildoer."
+role.sheriff.tips: "The Godfather appears innocent to you. Use your results to guide the town without revealing yourself too early."
+role.sheriff.reveal: "{player} was the **Sheriff**, a lawman with a tarnished badge and a sharp eye."
+role.sheriff.wiki: "https://town-of-salem.fandom.com/wiki/Sheriff"
+
+# ----- DOCTOR -----
+role.doctor.intro: "You are the **Doctor**, a healer who never sleeps. Each night you may protect one player from death. You may heal yourself once. You will learn if your patient was attacked.\nWiki: {wiki}"
+role.doctor.goal: "Lynch every criminal and evildoer."
+role.doctor.tips: "Healing cannot stop an execution or a haunting. Guess who the killers want, and be there first."
+role.doctor.reveal: "{player} was the **Doctor**, a healer who never turned a patient away."
+role.doctor.wiki: "https://town-of-salem.fandom.com/wiki/Doctor"
+
+# ----- ESCORT -----
+role.escort.intro: "You are the **Escort**, the most charming person in town. Each night you may distract one player so they cannot use their ability. Jailors, Veterans and other Escorts are immune to your charms.\nWiki: {wiki}"
+role.escort.goal: "Lynch every criminal and evildoer."
+role.escort.tips: "Distracting a killer is as good as saving someone. Distracting a Veteran gets you shot."
+role.escort.reveal: "{player} was the **Escort**, a charmer who kept many an evildoer busy."
+role.escort.wiki: "https://town-of-salem.fandom.com/wiki/Escort"
+
+# ----- GODFATHER -----
+role.godfather.intro: "You are the **Godfather**, head of the Mafia. Each night you may order the Mafioso to kill a target of your choosing. If there is no Mafioso, you do the deed yourself. You have basic defense and appear innocent to the Sheriff.\nWiki: {wiki}"
+role.godfather.goal: "Kill everyone who would oppose the Mafia."
+role.godfather.tips: "Let the Mafioso take the risk. Talk to your family in the Mafia Lair at night."
+role.godfather.reveal: "{player} was the **Godfather**, a polite man who made offers nobody could refuse."
+role.godfather.wiki: "https://town-of-salem.fandom.com/wiki/Godfather"
+
+# ----- MAFIOSO -----
+role.mafioso.intro: "You are the **Mafioso**, the Godfather's trusted gun. You carry out the Godfather's orders. If he gives none, you may choose a victim yourself.\nWiki: {wiki}"
+role.mafioso.goal: "Kill everyone who would oppose the Mafia."
+role.mafioso.tips: "If the Godfather's order and your own plan differ, his word wins. Stay hidden by day."
+role.mafioso.reveal: "{player} was the **Mafioso**, a hired gun with a loyal heart."
+role.mafioso.wiki: "https://town-of-salem.fandom.com/wiki/Mafioso"
+
+# ----- CONSIGLIERE -----
+role.consigliere.intro: "You are the **Consigliere**, the Mafia's eyes and ears. Each night you may investigate one player and learn their exact role.\nWiki: {wiki}"
+role.consigliere.goal: "Kill everyone who would oppose the Mafia."
+role.consigliere.tips: "Tell your family who the dangerous townies are before the Sheriff finds you."
+role.consigliere.reveal: "{player} was the **Consigliere**, an advisor who knew everyone's secrets."
+role.consigliere.wiki: "https://town-of-salem.fandom.com/wiki/Consigliere"
+
+# ----- SERIAL KILLER -----
+role.serial_killer.intro: "You are the **Serial Killer**, a merciless killer who answers to no one. Each night you may kill a player. If you are jailed or roleblocked, you lash out at whoever caught you. You have basic defense.\nWiki: {wiki}"
+role.serial_killer.goal: "Be the last one standing, with nobody left who could stop you."
+role.serial_killer.tips: "Town and Mafia both want you dead. Do not draw attention, and beware the Jailor."
+role.serial_killer.reveal: "{player} was the **Serial Killer**, a merciless killer who fell at last."
+role.serial_killer.wiki: "https://town-of-salem.fandom.com/wiki/Serial_Killer"
+
+# ----- JESTER -----
+role.jester.intro: "You are the **Jester**, a trickster with a death wish. You have no night ability. Your only goal is to trick the town into lynching you. If they do, your ghost haunts one living player who voted guilty, killing them.\nWiki: {wiki}"
+role.jester.goal: "Get yourself lynched."
+role.jester.tips: "Be suspicious, but not too suspicious. Do not make it obvious."
+role.jester.reveal: "{player} was the **Jester**, a fool who wanted the noose."
+role.jester.wiki: "https://town-of-salem.fandom.com/wiki/Jester"
+
+
+# =============================================================================
+# SECTION 2: GAME START AND PHASE BANNERS
+# =============================================================================
+
+# ----- Posted in Town Centre when the game begins. Vars: none. (2 variants)
+game.start.public:
+  - "The role list is posted below. Monke Town awakens, and not everyone here is who they say they are."
+  - "A hush falls over Monke Town. Somewhere among you, evil is already planning its first move. The role list is posted below."
+
+# ----- Header above the public role list. Vars: {count}
+game.rolelist.header: "**Role list ({count} players)**"
+
+# ----- Day 1 banner. Vars: {day}. (2 variants)
+phase.day1:
+  - "**Day 1.** A new game begins. Use this time to plan before night falls."
+  - "**Day 1.** Monke Town is quiet and nervous. Say hello, and say little."
+
+# ----- Dawn banner, every later day. Vars: {day}. (4 variants, rotated)
+phase.dawn:
+  - "**Day {day}.** It is a beautiful morning in the town of Monke."
+  - "**Day {day}.** The rooster crows over Monke Town as the sun climbs."
+  - "**Day {day}.** Mist hangs over the rooftops of Monke Town as the townsfolk stir."
+  - "**Day {day}.** The market stalls open, but every eye darts nervously."
+
+# ----- Noon banner, voting opens. Vars: {day}, {time}. (3 variants)
+phase.noon:
+  - "**Noon, Day {day}.** The town gathers in the square. Voting is open until {time}."
+  - "**Noon, Day {day}.** The bell tolls. Cast your votes before {time}."
+  - "**Noon, Day {day}.** The town square fills with whispers. Who will you accuse? You have until {time}."
+
+# ----- Afternoon banner. Vars: {day}, {time}. (3 variants)
+phase.afternoon:
+  - "**Afternoon, Day {day}.** The shadows lengthen. Talk while you still can; night falls {time}."
+  - "**Afternoon, Day {day}.** The sun begins to sink. Last chance to talk things through, until {time}."
+  - "**Afternoon, Day {day}.** The day wanes. Say what must be said before {time}."
+
+# ----- Night banner. Vars: {night}, {time}. (4 variants)
+phase.night:
+  - "**Night {night}.** Darkness settles over Monke Town. Make your choices before {time}."
+  - "**Night {night}.** The lanterns go out one by one. You have until {time} to act."
+  - "**Night {night}.** Doors are bolted, but bolts have never stopped the wicked. Choose before {time}."
+  - "**Night {night}.** The town sleeps with one eye open. Decide before {time}."
+
+# ----- Time-running-out warning. Vars: {time}. (3 variants)
+phase.warning:
+  - "Only {time} remain."
+  - "The clock is ticking. {time} left."
+  - "Hurry along, {time} remain."
+
+# ----- Game paused / resumed. Vars: none. (2 variants each)
+phase.paused:
+  - "**The game is paused.** Monke Town holds its breath."
+  - "**The game is paused** by the admin. Stay where you are."
+phase.resumed:
+  - "**The game resumes.** Monke Town stirs again."
+  - "**The game resumes.** Time flows once more."
+
+# ----- DM nudge when you have not chosen yet. Vars: {time}. (2 variants)
+night.nudge:
+  - "You have not chosen a target yet. {time} remain."
+  - "Time is almost up and you have not acted. {time} left."
+
+# ----- Feedback when a player presses Skip ahead. Vars: {count}, {needed}
+phase.skip.progress: "Skip vote registered ({count}/{needed})."
+
+
+# =============================================================================
+# SECTION 3: DAWN AND DEATH ANNOUNCEMENTS
+# =============================================================================
+
+# ----- Nobody died during the night. Vars: none. (4 variants)
+dawn.no_deaths:
+  - "Nobody died last night."
+  - "The town wakes up to find, somehow, that everyone is still alive."
+  - "A quiet night. No bodies were found this morning."
+  - "The sun rises on a town with no new graves."
+
+# ----- Line before the list of deaths. Vars: none. (2 variants)
+dawn.deaths_intro:
+  - "Bad news greets the town this morning."
+  - "The townsfolk gather around a grim discovery."
+
+# ----- Survivors line. Vars: {alive}. (2 variants)
+dawn.survivors:
+  - "{alive} townspeople remain."
+  - "Only {alive} are left standing."
+
+# ----- CAUSE OF DEATH. One line per death. Vars: {player}. (3-4 variants each)
+death.cause.mafia:
+  - "{player} was gunned down in the night by the Mafia."
+  - "The Mafia came for {player} in the dark."
+  - "{player} was found dead, a calling card of the Mafia beside them."
+  - "{player} never saw the Mafia's bullet coming."
+
+death.cause.serial_killer:
+  - "{player} was brutally murdered by a Serial Killer."
+  - "{player} was found in pieces. A Serial Killer walks among you."
+  - "A Serial Killer claimed {player} in the night."
+  - "{player} met a blade in the dark. A Serial Killer was here."
+
+death.cause.veteran:
+  - "{player} was shot by a Veteran on alert."
+  - "{player} knocked on the wrong door and met a Veteran's rifle."
+  - "{player} visited a Veteran and did not leave."
+
+death.cause.jailor:
+  - "{player} was executed by the Jailor."
+  - "The Jailor's axe fell on {player} in the cold dark of the dungeon."
+  - "{player} never returned from the Jailor's cell."
+
+death.cause.jester_haunt:
+  - "{player} was haunted to death by a vengeful Jester."
+  - "{player} died of fright. The Jester's ghost is satisfied."
+  - "The Jester's spirit dragged {player} to the grave."
+
+death.cause.lynched:
+  - "{player} was hanged by the town."
+  - "{player} was dragged to the gallows and lynched."
+  - "The noose tightened around {player}. The town has made its choice."
+  - "{player} swung from the gallows at the town's command."
+
+death.cause.abandoned:
+  - "{player} fled Monke Town in the night and was never seen again."
+  - "{player} died of neglect. Nobody noticed they had gone quiet."
+
+death.cause.moderated:
+  - "{player} was removed from the game by the admin."
+
+# ----- More than one attacker. Vars: {player}, {causes}. (2 variants)
+death.cause.multiple:
+  - "{player} was killed by several attackers at once: {causes}."
+  - "{player} was overwhelmed by multiple killers: {causes}."
+
+# ----- Will shown with the death. Vars: {player}, {will}. (2 variants)
+death.will:
+  - "**{player}'s will:**\n{will}"
+  - "**A will was found on {player}:**\n{will}"
+death.no_will:
+  - "{player} left no will."
+  - "No will could be found."
+
+# ----- Death note left by the killer. Vars: {note}. (2 variants)
+death.note:
+  - "**A note was left on the body:**\n{note}"
+  - "**The killer left a message:**\n{note}"
+
+
+# =============================================================================
+# SECTION 4: VOTING AND TRIALS
+# =============================================================================
+
+# ----- A vote is cast. Vars: {player}, {target}, {count}, {needed}. (3 variants)
+vote.cast:
+  - "**{player}** voted for **{target}**. ({count}/{needed})"
+  - "**{player}** points a finger at **{target}**. ({count}/{needed})"
+  - "**{player}** has chosen **{target}**. ({count}/{needed})"
+
+# ----- A vote is changed. Vars: {player}, {target} (new choice), {previous} (old choice), {count}, {needed}. (3 variants)
+# (v1.1: {previous} was added so the line can say who the vote moved away from. Keep it in every variant.)
+vote.change:
+  - "**{player}** changed their vote from **{previous}** to **{target}**. ({count}/{needed})"
+  - "**{player}** has second thoughts: out with **{previous}**, in with **{target}**. ({count}/{needed})"
+  - "**{player}** switches sides, from **{previous}** to **{target}**. ({count}/{needed})"
+
+# ----- A vote is withdrawn. Vars: {player}, {target} (whom the vote was against). (3 variants)
+# (v1.1: {target} was added so the line can say which vote was withdrawn.)
+vote.remove:
+  - "**{player}** withdrew their vote from **{target}**."
+  - "**{player}** takes back their vote against **{target}**."
+  - "**{player}** has decided against it and cancels their vote for **{target}**."
+
+# ----- Noon ended without a trial. Vars: none. (3 variants)
+noon.no_trial:
+  - "The town could not agree on anyone. There will be no trial today."
+  - "Nobody gathered enough votes. The day drifts on."
+  - "No accusation stuck. The sun begins to set."
+
+# ----- A trial begins. Vars: {target}. (3 variants)
+trial.start:
+  - "**{target} is on trial!** The town demands answers."
+  - "**{target}** is dragged before the town to answer for their crimes."
+  - "**{target}** has been put on trial. The town waits to hear their side."
+
+# ----- Defense phase. Vars: {target}, {time}. (3 variants)
+trial.defense:
+  - "{target}, you have {time} to defend yourself. Only you may speak."
+  - "The floor is yours, {target}. You have {time}. Choose your words carefully."
+  - "{target}, speak now. {time} remain, and nobody may interrupt."
+
+# ----- Verdict phase. Vars: {target}, {time}. (3 variants)
+trial.verdict:
+  - "Time to decide: is **{target}** guilty or innocent? You have {time}."
+  - "The town must judge **{target}**. You have {time} to choose."
+  - "Guilty or innocent? Decide the fate of **{target}** within {time}."
+
+# ----- Verdict: guilty. Vars: {target}, {count}, {needed}. (3 variants)
+trial.guilty:
+  - "The town has spoken: **{target}** is guilty and will be hanged."
+  - "**{target}** has been found guilty. The gallows await."
+  - "Guilty! The town sends **{target}** to the noose."
+
+# ----- Verdict: pardoned. Vars: {target}. (3 variants)
+trial.pardon:
+  - "The town has spoken: **{target}** is pardoned."
+  - "**{target}** walks free, for now."
+  - "Not guilty. **{target}** is released and the mob disperses."
+
+# ----- Vote reveal after a verdict. Vars: {count} (guilty), {needed} (innocent). 1 variant
+trial.reveal: "**Verdict:** {count} guilty, {needed} innocent."
+
+# ----- Three pardons, no more trials today. Vars: none. (2 variants)
+trial.three_innocent:
+  - "Three trials have failed. The town is tired and dusk approaches."
+  - "The town has pardoned three accused. No more trials today."
+
+# ----- Jester has been lynched. Vars: {player}. (2 variants)
+jester.win_public:
+  - "{player} was the Jester, and the town fell for the trick. Their ghost will haunt Monke Town."
+  - "The Jester has won. {player}'s spirit lingers, and it is angry."
+
+
+# =============================================================================
+# SECTION 5: NIGHT MESSAGES (private, DM)
+# =============================================================================
+
+# ----- Jailed. Vars: none. (3 variants)
+jail.prisoner.notified:
+  - "You were hauled off to jail. You cannot use your ability tonight."
+  - "A hand clamps over your mouth. You are dragged to the dungeon, and you cannot use your ability tonight."
+  - "Cold iron closes around your wrists. You are in jail, and you cannot use your ability tonight."
+
+# ----- Posted in the Jail channel at night start. Vars: none. (2 variants)
+jail.channel.open:
+  - "A heavy door slams. Someone is watching you from the dark."
+  - "A lantern flickers. A shadow behind the bars waits for your answers."
+
+# ----- DM to the Jailor. Vars: {target}. (2 variants)
+jail.jailor.prompt:
+  - "You jailed **{target}**. Anything you type here is relayed anonymously to the prisoner. Use the buttons below to execute them if you choose."
+  - "**{target}** is behind bars. Talk to them through me, and decide if the axe should fall."
+
+# ----- Released at dawn. Vars: none. (2 variants)
+jail.release:
+  - "The dungeon doors open at dawn. You are free."
+  - "You are released with the morning light."
+
+# ----- Visitor's target was in jail. Vars: none. (3 variants)
+jail.target_in_jail:
+  - "Your target was in jail, so your ability failed."
+  - "You found nobody home. Your target was in jail."
+  - "Your target was locked away tonight, and you accomplished nothing."
+
+# ----- Told to the prisoner before execution. Vars: none. (2 variants)
+jailor.executed_notice:
+  - "The Jailor has decided to execute you."
+  - "The Jailor raises the axe. This is the end."
+
+# ----- Jailor executed a Town member. Vars: none. (2 variants)
+jailor.exec_disabled:
+  - "You executed one of your own. You will not be able to execute again."
+  - "The guilt is overwhelming. You can never raise the axe again."
+
+# ----- Roleblocked. Vars: none. (3 variants)
+block.you_were_blocked:
+  - "Someone occupied your night. You could not use your ability."
+  - "A suspiciously charming visitor kept you busy all night. Your ability failed."
+  - "You were distracted and did nothing useful tonight."
+
+# ----- Roleblock target immune (told to the Escort). Vars: none. (2 variants)
+block.target_immune:
+  - "Your target could not be distracted."
+  - "Your charms had no effect. Your target is immune."
+
+# ----- You were attacked and healed. Vars: none. (3 variants)
+attack.saved_target:
+  - "You were attacked tonight, but a Doctor saved your life!"
+  - "Someone came for you in the night, but a healer pulled you through!"
+  - "You felt a sharp pain, then a gentle hand. A Doctor saved you."
+
+# ----- Told to the Doctor. Vars: none. (3 variants)
+attack.doctor_target_attacked:
+  - "Your patient was attacked tonight."
+  - "Your patient was in danger last night."
+  - "Someone tried to kill your patient."
+
+# ----- Your attack failed. Vars: none. (3 variants)
+attack.too_strong:
+  - "Your target's defense was too strong to kill."
+  - "You struck, but your target would not fall."
+  - "Your target shrugged off the attack."
+
+# ----- You survived an attack through defense. Vars: none. (3 variants)
+attack.survived:
+  - "Someone attacked you, but your defense saved you."
+  - "A blade found you in the dark, but you survived."
+  - "You were attacked tonight and lived to tell the tale."
+
+# ----- Veteran. Vars: none.
+vet.alert_on:
+  - "You go on alert tonight. Anyone who visits will be shot."
+  - "You load your rifle and wait in the dark."
+vet.shot_visitor:
+  - "You shot someone who visited you last night."
+  - "A visitor crept up to your door. You did not hesitate."
+vet.no_alerts: "You have no alerts left."
+
+# ----- Serial Killer. Vars: none. (2 variants each)
+sk.blocked_rampage:
+  - "Someone tried to occupy your night. You responded violently."
+  - "A distraction? You tore through whoever tried to keep you busy."
+sk.jailed_rampage:
+  - "You were thrown in jail. You lashed out at your captor."
+  - "The dungeon will not hold you. You turned on the Jailor."
+
+# ----- Mafia. Vars: {target}. (3 variants)
+mafia.order_received:
+  - "The Godfather ordered you to kill **{target}**."
+  - "The Godfather has given you a name: **{target}**."
+  - "Your orders came down from the Godfather: **{target}**."
+
+# ----- The Godfather must kill himself. Vars: none. (2 variants)
+mafia.godfather_takes_over:
+  - "The Mafioso could not act. You must do the killing yourself."
+  - "No Mafioso is available tonight. You will get your own hands dirty."
+
+# ----- Sheriff results. Vars: {target}. (3 variants each)
+sheriff.result.innocent:
+  - "Your target, **{target}**, seems innocent."
+  - "You find nothing suspicious about **{target}**."
+  - "**{target}** is as clean as they come."
+sheriff.result.guilty:
+  - "Your target, **{target}**, is **suspicious**!"
+  - "Something about **{target}** is very wrong. They are **suspicious**."
+  - "**{target}** has blood on their hands. They are **suspicious**."
+
+# ----- Consigliere result. Vars: {target}, {role}. (3 variants)
+consig.result:
+  - "Your target, **{target}**, is a **{role}**."
+  - "You uncover the truth: **{target}** is a **{role}**."
+  - "After some digging, you learn **{target}** is a **{role}**."
+
+# ----- Doctor. Vars: none.
+doctor.self_heal_used: "You used your one self heal. You will not be able to heal yourself again."
+doctor.no_self_heal: "You have no self heals left."
+
+# ----- Jester ghost. Vars: {target}.
+jester.haunt_prompt:
+  - "The town fell for your trick. Choose one of those who voted guilty to haunt."
+  - "Your ghost may take revenge on one who voted guilty. Choose below."
+jester.haunt_done:
+  - "You haunted **{target}**."
+  - "**{target}** felt your presence and died of fright."
+
+
+# =============================================================================
+# SECTION 6: ACTION CONFIRMATIONS (ephemeral). Vars: {target} where shown.
+# =============================================================================
+action.confirm.heal: "You will heal **{target}** tonight."
+action.confirm.block: "You will distract **{target}** tonight."
+action.confirm.sheriff: "You will investigate **{target}** tonight."
+action.confirm.consig: "You will investigate **{target}** tonight."
+action.confirm.mafia_kill: "You will kill **{target}** tonight."
+action.confirm.mafia_order: "You will order the kill of **{target}** tonight."
+action.confirm.sk_kill: "You will kill **{target}** tonight."
+action.confirm.alert: "You will go on alert tonight."
+action.confirm.alert_off: "You will not go on alert tonight."
+action.confirm.no_action: "You will do nothing tonight."
+action.confirm.jail: "You will jail **{target}** tonight."
+action.confirm.jail_clear: "You will not jail anyone tonight."
+action.confirm.execute: "You will execute your prisoner tonight."
+action.confirm.execute_cancel: "You will spare your prisoner tonight."
+action.confirm.haunt: "You will haunt **{target}**."
+action.confirm.verdict.guilty: "You voted **guilty**. You can change this until time runs out."
+action.confirm.verdict.innocent: "You voted **innocent**. You can change this until time runs out."
+action.confirm.verdict.abstain: "You abstained. You can change this until time runs out."
+action.confirm.confirm: "Your choice is locked in."
+
+
+# =============================================================================
+# SECTION 7: GAME END
+# =============================================================================
+
+# ----- Winners. Vars: none. (2 variants each)
+end.town:
+  - "**The Town wins!** Peace returns to Monke Town."
+  - "**The Town wins!** The last evildoer is gone, and the sun rises on a safe town."
+end.mafia:
+  - "**The Mafia wins!** Monke Town now belongs to the family."
+  - "**The Mafia wins!** The town is theirs, and nobody is left to say otherwise."
+end.sk:
+  - "**The Serial Killer wins!** The town is silent but for one set of footsteps."
+  - "**The Serial Killer wins!** Nobody is left to stop the killer."
+end.draw:
+  - "**It is a draw.** The town is left in a deadly stalemate."
+  - "**It is a draw.** Nobody can win. The streets are quiet."
+end.jester:
+  - "The **Jester** also wins, having been lynched."
+  - "The **Jester** wins, and laughs from beyond the grave."
+
+# ----- Recap. Vars: {day}, {night}, {player}, {target}, {count}, {needed}.
+end.recap.header: "**Game recap**"
+end.recap.day: "**Day {day}**"
+end.recap.night: "**Night {night}**"
+end.recap.lynch: "{target} was lynched ({count} guilty, {needed} innocent)."
+end.recap.jail: "{target} was jailed."
+end.recap.execute: "{target} was executed by the Jailor."
+end.recap.death: "{player} died ({causes})."
+end.rematch: "Play again with the same players?"
+
+
+# =============================================================================
+# SECTION 8: GRAVEYARD AND AFK
+# =============================================================================
+
+# ----- A player has died, posted in the Graveyard. Vars: {player} (this is the ONE message that pings). (3 variants)
+graveyard.welcome:
+  - "Welcome to the graveyard, {player}. You may watch the town and speak with the dead."
+  - "{player} rises as a ghost. Rest easy, and talk with the others who fell."
+  - "Another soul joins the graveyard. Welcome, {player}."
+
+# ----- Pinned once per game in the Graveyard. Vars: none.
+graveyard.rules: "Dead players may talk freely here and read the town square, but may not speak in it. Do not message living players or share anything about the game with them."
+
+# ----- AFK. Vars: {count}. (2 variants each)
+afk.warning:
+  - "You have been inactive for {count} days. Take part or you will be removed from the game."
+  - "The town has noticed you have been quiet for {count} days. Speak up or be removed."
+afk.removed:
+  - "You were removed from the game for inactivity."
+  - "You were marked as abandoned after too many inactive days."
+
+
+# =============================================================================
+# SECTION 9: WILLS AND DEATH NOTES. Vars: {count} (limit) where shown.
+# =============================================================================
+will.saved: "Your will was saved."
+will.too_long: "Your will is too long. The limit is {count} characters."
+will.disabled: "Wills are disabled in this game."
+deathnote.saved: "Your death note was saved."
+deathnote.too_long: "Your death note is too long. The limit is {count} characters."
+deathnote.not_allowed: "Your role has no death note."
+deathnote.disabled: "Death notes are disabled in this game."
+
+
+# =============================================================================
+# SECTION 10: LOBBY AND ADMIN MESSAGES
+# =============================================================================
+lobby.created:
+  - "**A new game is forming!** Press Join to take a seat in Monke Town."
+  - "**Monke Town needs townsfolk.** Press Join to be one of them."
+lobby.joined:
+  - "You joined the lobby. Check your DMs, I sent you a test message."
+  - "You are in. Make sure your DMs stay open so I can tell you your role."
+lobby.left: "You left the lobby."
+lobby.full: "The lobby is full (20 players)."
+lobby.already_in: "You are already in this lobby."
+lobby.dm_closed: "I could not DM you. Open your DMs (Server menu > Privacy Settings > Direct Messages) and press Join again."
+lobby.start_blocked.count: "Not enough players yet. {count} joined, 5 are needed."
+lobby.start_blocked.rolelist: "The role list has a problem: {causes}"
+lobby.cancelled: "The lobby was cancelled."
+lobby.expired: "The lobby expired due to inactivity."
+lobby.started: "The game is starting. Check your DMs for your role."
+
+admin.setup.done: "Setup complete. Monke Town is ready."
+admin.teardown.confirm: "This removes the Monke Town category, channels and roles. Are you sure?"
+admin.teardown.done: "Everything has been removed."
+admin.abort.confirm: "End the current game now? This cannot be undone."
+admin.aborted: "**The game was ended by the admin.**"
+admin.paused: "The game is paused."
+admin.resumed: "The game has resumed."
+admin.extended: "Phase extended by {time}."
+admin.skipped: "The admin ended this phase early."
+# (v1.1: now names the slot and both people, and nothing else. Vars: {slot}, {player} (old), {target} (new))
+admin.replaced: "Slot **#{slot}** has changed hands: **{player}** has been replaced by **{target}**."
+admin.modkill.confirm: "Remove {target} from the game?"
+admin.settings.saved: "Server defaults updated."
+admin.reload.ok: "Flavour text reloaded. {count} keys loaded."
+admin.reload.failed: "The flavour file has errors and was not loaded. The previous text is still active:\n{causes}"
+admin.diagnose.ok: "All checks passed."
+admin.diagnose.problems: "Some checks failed. See details below."
+admin.export.ready: "Game log is attached."
+admin.restarted: "The bot restarted and your game was restored."
+admin.dm_failed: "I could not send a DM to {player}. They need to open their DMs."
+
+
+# =============================================================================
+# SECTION 11: ERRORS (shown ephemeral). Every error says what happened + fix.
+# =============================================================================
+error.dead: "You are dead, so you cannot do that. You can still talk in the Graveyard."
+error.not_in_game: "You are not part of the current game."
+error.no_game: "There is no game running. Ask the admin to start one."
+error.game_running: "A game is already running in this server."
+error.not_admin: "Only the Monke Admin can use that command."
+error.wrong_phase: "You cannot do that right now. It works during {causes}. The next opportunity is {time}."
+error.vote_wrong_phase: "You can only vote during Noon. The next vote opens {time}."
+error.stale_prompt: "This prompt has expired. Use the newest one."
+error.unknown_target: "I could not find that player. Pick one from the list."
+error.dead_target: "That player is already dead. Pick someone who is alive."
+error.self_target: "You cannot target yourself."
+error.no_uses: "You have no uses left."
+error.already_pardoned: "That player was already pardoned today and cannot be put on trial again."
+error.defendant_cannot_vote: "The accused cannot give a verdict on their own trial."
+error.bad_option: "I did not understand the option {causes}. Did you mean {target}?"
+error.bad_duration: "I could not read the time {causes}. Use forms like 90s, 2m or 1h."
+error.below_minimum: "That is below the minimum of {time}."
+error.bad_rolelist: "The role list is invalid: {causes}"
+error.player_count: "You need between 5 and 20 players. You listed {count}."
+error.rolelist_count: "The role list has {count} roles but there are {needed} players."
+error.no_prisoner: "You have nobody jailed tonight."
+error.generic: "Something went wrong on my side. The admin has been told."
+
+
+# #############################################################################
+# ADDITIONS (v1.1). Everything below is text the bot used to keep in code
+# (banner layout, error wording, admin replies, archive messages) plus the
+# labels the new features need. Same rules as above: edit freely, keep the
+# {placeholders} the banner says each key allows, then run /reloadtext.
+# #############################################################################
+
+# =============================================================================
+# SECTION 12: ROLE NAMES AND ABILITY LABELS
+# role.<id>.name is the name shown for a role everywhere. ability.* is the line
+# on a prompt. Vars: {count} (uses left, only where shown).
+# =============================================================================
+role.jailor.name: "Jailor"
+role.veteran.name: "Veteran"
+role.sheriff.name: "Sheriff"
+role.doctor.name: "Doctor"
+role.escort.name: "Escort"
+role.godfather.name: "Godfather"
+role.mafioso.name: "Mafioso"
+role.consigliere.name: "Consigliere"
+role.serial_killer.name: "Serial Killer"
+role.jester.name: "Jester"
+ui.role.unknown: "Unknown"
+
+ability.jailor.jail.label: "Choose who to jail tonight"
+ability.jailor.execute.label: "Execute your prisoner"
+ability.veteran.alert.label: "Go on alert tonight ({count} left)"
+ability.sheriff.investigate.label: "Investigate someone"
+ability.doctor.heal.label: "Heal someone"
+ability.escort.roleblock.label: "Distract someone"
+ability.godfather.order.label: "Order the kill"
+ability.mafioso.kill.label: "Choose who to kill"
+ability.consigliere.investigate.label: "Investigate someone"
+ability.serial_killer.kill.label: "Choose who to kill"
+ability.jester.haunt.label: "Haunt a guilty voter"
+
+# =============================================================================
+# SECTION 13: PHASE BANNER LAYOUT
+# A banner is: [one transition line] + [the phase line] + status lines.
+#   Day 1, Noon, Afternoon and Night use the phase.* lines in section 2.
+#   Day (dawn) uses the dawn report instead; Defense and Verdict use ui.title.*.
+# =============================================================================
+ui.title.day: "☀️ **Day {day}**"
+ui.title.defense: "🛡️ **Defense, Day {day}**"
+ui.title.verdict: "⚖️ **Verdict, Day {day}**"
+# Vars: {rel} (a live countdown) and {alive}.
+ui.banner.status: "Ends {rel} · {alive} alive"
+ui.banner.votes: "Votes needed for a trial: {needed}"
+ui.banner.paused: "⏸️ **Paused.** The clock is stopped until an admin resumes the game."
+
+# Short line above the banner when a phase ends by itself. Vars as shown.
+transition.day1_timer: "Day 1 is over."
+transition.day_timer: "Discussion is over. Voting is open."
+transition.defense_timer: "The defense is over. Cast your verdict."
+transition.afternoon_timer: "The sun has set. Night {night} begins."
+transition.skip_early: "A majority of the town agreed to skip ahead."
+transition.admin_skip: "An admin ({name}) ended the phase early."
+transition.unknown: "The phase changed."
+
+# A phase's name inside error messages and "when" text. Vars: {day} / {night}
+ui.phase.day: "Day"
+ui.phase.night: "Night"
+ui.when.day: "Day {day}"
+ui.when.noon: "Day {day} Noon"
+ui.when.night: "Night {night}"
+
+# Lengths of time inside sentences ("You have 30 seconds"). Vars: {count}
+ui.duration.second: "{count} second"
+ui.duration.seconds: "{count} seconds"
+ui.duration.minute: "{count} minute"
+ui.duration.minutes: "{count} minutes"
+ui.duration.hour: "{count} hour"
+ui.duration.hours: "{count} hours"
+
+# One line of the player list in the game-start post. Vars: {slot}, {name}
+ui.role.list.line: "#{slot} {name}"
+
+# One emoji each, kept in one place.
+ui.emoji.day: "☀️"
+ui.emoji.noon: "🗳️"
+ui.emoji.defense: "🛡️"
+ui.emoji.verdict: "⚖️"
+ui.emoji.afternoon: "🌇"
+ui.emoji.night: "🌙"
+ui.emoji.death: "💀"
+ui.emoji.trial: "⚖️"
+ui.emoji.ok: "✅"
+ui.emoji.pause: "⏸️"
+ui.emoji.winner: "🏆"
+
+# =============================================================================
+# SECTION 14: GAME START, ROLE CARD, PROMPTS
+# =============================================================================
+ui.roster.title: "Town of Monke: the game begins"
+ui.roster.players: "Players"
+ui.game_logged: "Game channels are logged for the post-game archive."
+
+# Role card (DM). Vars: {role} in the title, {player} and {role} for a teammate.
+ui.card.title: "You are the {role}"
+ui.card.alignment: "Alignment"
+ui.card.attack: "Attack"
+ui.card.defense: "Defense"
+ui.card.abilities: "Abilities"
+ui.card.goal: "Goal"
+ui.card.tips: "Tips"
+ui.card.team: "Your Mafia team"
+ui.card.teammate: "{player}: {role}"
+ui.align.town: "Town"
+ui.align.mafia: "Mafia"
+ui.align.neutral: "Neutral"
+ui.level.0: "None"
+ui.level.1: "Basic"
+ui.level.2: "Powerful"
+ui.level.3: "Unstoppable"
+
+# Prompt DMs. Vars: {rel} (countdown), {what} (the prompt's name).
+ui.prompt.tonight: "tonight"
+ui.prompt.today: "today"
+ui.prompt.deadline_night: "Choose before {rel}."
+ui.prompt.deadline_day: "Choose before night falls."
+ui.prompt.current: "Current choice"
+ui.prompt.do_nothing: "Do nothing"
+ui.prompt.on: "ON"
+ui.prompt.off: "OFF"
+ui.prompt.expired: "Expired: {what}"
+
+# =============================================================================
+# SECTION 15: TRIAL, VERDICT AND DEATH PIECES
+# =============================================================================
+# Names for causes inside "killed by ...". Joined with ui.join.and.
+ui.cause.mafia: "the Mafia"
+ui.cause.serial_killer: "a Serial Killer"
+ui.cause.veteran: "a Veteran"
+ui.cause.jailor: "the Jailor"
+ui.cause.jester_haunt: "the Jester"
+ui.cause.lynched: "the town"
+ui.cause.abandoned: "abandonment"
+ui.cause.moderated: "an admin"
+ui.join.and: " and "
+
+# Vars: {count}, {players}
+ui.verdict.guilty: "**Guilty ({count}):** {players}"
+ui.verdict.innocent: "**Innocent ({count}):** {players}"
+ui.verdict.abstain: "**Abstained ({count}):** {players}"
+ui.verdict.none: "nobody"
+ui.trial.voters: "Voted to put them on trial: {players}"
+ui.button.guilty: "Guilty"
+ui.button.innocent: "Innocent"
+ui.button.abstain: "Abstain"
+
+# Shown above the day count after a night with a streak of quiet days. Vars: {count}
+dawn.stalemate_warning: "No one has died for {count} full days and nights. If the next day and night also pass without a death, the game ends in a draw."
+
+# Missing from section 5: told to an attacker whose target was healed.
+attack.target_healed:
+  - "Your target was attacked but healed, so they survived."
+  - "A healer got there first. Your target survived."
+
+# =============================================================================
+# SECTION 16: GAME OVER
+# =============================================================================
+ui.end.title.town: "The Town wins!"
+ui.end.title.mafia: "The Mafia wins!"
+ui.end.title.sk: "The Serial Killer wins!"
+ui.end.title.draw: "It's a draw!"
+ui.end.title.aborted: "The game was aborted."
+# Vars: {player}, {role}, {fate} (survived, or how and when they died)
+ui.end.line: "{player}: {role} ({fate})"
+# Vars: {reason}, {day}
+ui.end.footer: "{reason} • after day {day}"
+
+# =============================================================================
+# SECTION 17: ADMIN REPLIES, SETUP AND ARCHIVE (Monke Commands)
+# =============================================================================
+# Archive-only note when someone leaves the server mid-game. Vars: {player}
+admin.player_left: "{player} left the server and will be removed at the next dawn."
+admin.skip_too_soon: "The phase just changed. Check `monke status` before skipping again."
+admin.no_admins: "Nobody has Monke Admin. Give the role to someone in Server Settings → Roles."
+admin.admins_list: "Current Monke Admin holders: {names}"
+admin.engine_error: "Game {game_id}: The game was paused because of an internal error. Use `monke resume` or `monke abort`."
+admin.game_paused: "The game is paused. Use `monke resume` or `monke abort`."
+admin.setup.details: "Run games in <#{channel}>. Everyone can read that channel, but only **Monke Admin** can write there.\nServer owners and Administrators can see every channel, so they should not play."
+admin.setup.missing_perms: "I'm missing permissions: {causes}. (Do not give me Administrator.)"
+admin.setup.hierarchy: "Move my role above the '{role}' role (Server Settings > Roles), then run setup again."
+admin.teardown.pending: "A game's archive is not finished. Run `monke export` first, or use `monke teardown --force` to delete everything anyway."
+admin.teardown.running: "A game is running. Use `monke abort` first."
+admin.teardown.nothing: "Nothing to tear down."
+
+admin.start.starting: "Starting the game: assigning roles and sending DMs..."
+# Vars: {causes} (the reason, already worded)
+admin.start.cant: "Can't start: {causes}"
+# Vars: {causes} (the players who must open their DMs)
+admin.start.dm_failed: "Start aborted. These players must open their DMs (Privacy Settings > allow DMs): {causes}"
+# Never shows roles. Vars: {status}, {phase}, {rel}, {alive}, {total}
+admin.status: "Status **{status}**, phase **{phase}**, ends {rel}, {alive}/{total} alive."
+admin.abort.done: "Game aborted. The archive will be posted here shortly."
+ui.vote.recorded: "Vote recorded."
+ui.vote.removed: "Vote removed."
+# Vars: {count}
+ui.resend.done: "Sent {count} prompt(s) to your DMs."
+error.nothing_to_do: "You have nothing to do right now. Prompts appear at the start of each phase you can act in."
+# Vars: {days}
+error.archive_expired: "That game is older than the {days}-day retention window, so its chat is gone. Use the archive zip posted in Monke Commands."
+
+archive.failed: "Archive failed. Chats were NOT deleted. Run `monke export` to retry."
+archive.purge_failed: "The archive is saved in Monke Commands, but clearing the game channels failed. Run `monke export` to retry."
+archive.live_refused: "Archives are only available after the game ends."
+archive.still_running: "The previous game is still being archived. Wait for the archive to appear in Monke Commands, or run `monke export`."
+archive.building: "Building the archive. This can take a minute."
+archive.export.done: "Archive posted in Monke Commands."
+archive.export.done_cleared: "Archive posted in Monke Commands and the game channels were cleared."
+archive.export.failed: "The archive failed again. Chats were NOT deleted. Check the bot log."
+archive.separator: "────────────────────\n**GAME {game_id} OVER**\nResult: {result}\nThe logs are in #monke-commands.\nAnything below this line belongs to the next game."
+archive.embed.title: "Game {game_id} archive"
+archive.embed.result: "Result"
+archive.embed.length: "{minutes} min, {days} days"
+archive.embed.player: "#{slot} {name}: {role}, {fate}"
+
+# =============================================================================
+# SECTION 18: ERRORS FOR THE RULES (shown ephemeral; every one says what to do)
+# =============================================================================
+error.game_ended: "The game has ended. An admin can start a new one with `monke start`."
+error.game_not_running: "The game is not running right now. Wait for an admin to resume it."
+error.already_started: "The game has already started."
+error.not_paused: "The game is not paused, so there is nothing to resume."
+error.paused: "The game is paused. Wait for an admin to resume it."
+error.not_started: "The game has not started yet. Wait for the first day."
+error.no_ability: "You have nothing to choose here. Use `/role` to see what you can do."
+error.cant_use: "You cannot use that right now. Check your prompt for what is available."
+error.no_target_needed: "That choice does not take a target. Use the button instead."
+error.no_verdict: "There is no trial to vote on right now. Verdicts open after a defense."
+error.bad_verdict: "A verdict must be guilty, innocent or abstain. Use the buttons."
+error.bad_option_nosuggest: "I did not understand the option {causes}. Options look like `night=3m` or `preset=blitz`."
+error.setting_invalid: "That setting is not allowed: {causes}"
+error.rolelist_unknown_token: "I do not know the role list entry {causes}. Use role names or tokens like TK, TI, TP, TS, MK, RT, RM, RN or Any."
+error.rolelist_jailor: "The role list needs exactly one Jailor. Add or remove one."
+error.rolelist_godfather: "The role list needs exactly one Godfather. Add or remove one."
+error.rolelist_unique: "{role} appears more than once but is unique. Replace one with TK or RT."
+error.rolelist_pool: "The role list has too many {group} entries: every {group} role is already taken. Replace one with RT or Any."
+error.distinct_players: "Every player must be a different person. Remove the duplicate."
+error.no_such_game: "I have no game with that id. Check the id in the archive embed."
+
+# =============================================================================
+# SECTION 19: RESTARTS AND RECOVERY (v1.1)
+# The bot can crash, be killed, or the computer can sleep. When it comes back,
+# these are the notices. Monke Commands is public: keep every admin notice
+# spoiler-safe (no roles, no names of the dead, no who-did-what).
+# =============================================================================
+# Monke Commands. Vars: {game_id}
+rel.quarantined: "Game {game_id} could not be loaded after the restart, so I set it aside. Its data is untouched. Check the bot log, or restore a backup from the backups folder."
+# Monke Commands. Vars: {causes} (what is missing)
+rel.structures_missing: "I came back and some of this game's channels or roles are missing ({causes}), so the game is paused. Check that nobody deleted them, then run `monke diagnose fix:true`."
+# Monke Commands. Vars: {count}
+rel.players_left: "{count} player(s) left the server while I was offline and have been removed from the game."
+# Monke Commands.
+rel.starting_cancelled: "A game was still starting when I went offline. I cancelled it and removed its roles. Start it again with `monke start`."
+# Jail channel, when a prisoner exists after a restart.
+rel.jail_gap: "I was offline for a moment. Anything said in here while I was away was not passed on."
+# DM to the Jailor. Vars: {count} (messages from the prisoner while offline), {digest} (what they said, one per line)
+rel.jailor_gap: "I was offline for a moment. {count} message(s) from your prisoner arrived while I was away:\n{digest}\nAnything you sent me during that time was not relayed."
+# Monke Commands, per game. Vars: {game_id}, {time} (how long the bot was offline)
+rel.restarted_admin: "I restarted. Game {game_id} was frozen for {time} and its clock has been handed back."
+# Town Centre, only after more than 15 seconds offline.
+rel.restarted_town: "Monke Town was briefly interrupted. The clock has been handed back, so nobody lost any time."
+# Town Centre, when the bot is shut down on purpose.
+rel.shutdown_notice: "The bot is shutting down. The game will pick up where it left off when I return."
+# Monke Commands, after 10 failed attempts to post. Vars: {game_id}
+rel.render_failed: "Game {game_id}: I cannot reach Discord to post some messages. I keep retrying and will catch up in order."
+# DM to the bot owner (MONKE_OWNER_ID), at most one a minute. Vars: {game_id}
+rel.owner_alert: "Monke hit an error (game {game_id}). The details are in the log file."
+error.shutting_down: "The bot is shutting down. Try again in a moment."
+
+# =============================================================================
+# SECTION 20: START COMMAND ERRORS
+# =============================================================================
+error.bot_player: "Bots cannot play. Mention only people."
+error.start_usage: "Mention the players, then (optionally) the role list: `monke start @p1 @p2 @p3 @p4 @p5` or just `monke start` for a lobby."
+
+# =============================================================================
+# SECTION 21: COMMANDS, HELP AND INFO REPLIES (v1.1)
+# One-line help for every command (also shown as the slash command's
+# description: Discord allows 100 characters and a restart of the bot to
+# refresh it), info command replies, buttons, and confirmations.
+# =============================================================================
+help.header: "**Commands you can use right now**"
+# Vars: {usage}, {text}
+help.line: "`{usage}`: {text}"
+help.group.player: "**Play**"
+help.group.admin: "**Admin** (in Monke Commands)"
+help.group.server: "**Server**"
+help.nothing: "There is nothing you can do right now. Wait for the next phase."
+help.vote: "Vote to put a player on trial (Noon only)."
+help.unvote: "Withdraw your vote."
+help.votes: "Show who has voted for whom."
+help.alive: "Show who is alive and who has died."
+help.rolelist: "Show this game's role list, or the default list for a number of players."
+help.timer: "Show the current phase and how long it lasts."
+help.role: "Show your role card again."
+help.help: "Show the commands that work for you right now."
+help.resend: "Send your current action prompt to your DMs again."
+help.journal: "Show everything private you have learned so far."
+help.will: "Write or edit your will."
+help.deathnote: "Write or edit your death note."
+help.start: "Open a lobby, or start a game with the players you mention."
+help.status: "Show the phase, the timer and how many are alive."
+help.skip: "End the current phase now."
+help.abort: "Cancel the running game."
+help.resume: "Resume a paused game."
+help.pause: "Freeze the game and its clock."
+help.extend: "Add time to the current phase."
+help.modkill: "Remove a player from the game."
+help.replace: "Swap one player for another mid-game."
+help.settings: "Show or change the server's default settings."
+help.reloadtext: "Reload flavour.yaml after you edit it."
+help.diagnose: "Check that the bot, channels and roles are set up correctly."
+help.export: "Rebuild and post a game's archive."
+help.admins: "List the Monke Admin holders."
+help.setup: "Create (or repair) the Monke channels and roles."
+help.teardown: "Remove all Monke channels and roles."
+help.lobby: "Manage the open lobby (add, remove, cancel)."
+
+# What each slash command option means (shown while typing the command).
+help.arg.player: "The player (name, number or mention)."
+help.arg.count: "A number of players."
+help.arg.game_id: "A game id from the archive."
+help.arg.players: "The players, as mentions."
+help.arg.roles: "The role list (names or tokens like TK, RT, RN, Any)."
+help.arg.options: "Options such as preset=blitz night=3m."
+help.arg.force: "Delete everything even if an archive is unfinished."
+help.arg.time: "How long, like 90s, 2m or 1h."
+help.arg.reason: "A short reason (optional)."
+help.arg.old: "The player to replace."
+help.arg.new: "The player who takes over."
+help.arg.text: "The text."
+help.arg.fix: "Repair what can be repaired safely."
+help.arg.settings: "Settings such as preset=relaxed."
+help.arg.action: "What to do."
+
+# Info commands. Vars as shown.
+# Vars: {count}
+info.alive.header: "**Alive ({count})**"
+info.alive.dead_header: "**Dead ({count})**"
+# Vars: {player}, {role}, {causes} (how), {day} (when)
+info.alive.dead_line: "💀 {player}: {role}, {causes}, day {day}"
+info.votes.header: "**Votes**"
+# Vars: {target}, {count}, {players}
+info.votes.line: "**{target}** ({count}): {players}"
+# Vars: {needed}
+info.votes.needed: "{needed} votes are needed to start a trial."
+info.votes.none: "Nobody has voted yet."
+info.votes.closed: "Voting is only open at Noon."
+# Vars: {count}
+info.rolelist.header: "**Role list ({count} players)**"
+info.rolelist.default: "**Default role list for {count} players**"
+# Vars: {phase}, {rel}
+info.timer.running: "**{phase}** ends {rel}."
+info.timer.paused: "**{phase}** is paused. The clock is stopped."
+info.timer.over: "The game is over."
+# Phase names. Vars: {day} / {night}
+ui.phasename.day_1: "Day 1"
+ui.phasename.day: "Day {day}"
+ui.phasename.noon: "Day {day} Noon"
+ui.phasename.defense: "Day {day} Defense"
+ui.phasename.verdict: "Day {day} Verdict"
+ui.phasename.afternoon: "Day {day} Afternoon"
+ui.phasename.night: "Night {night}"
+
+# Buttons.
+ui.button.join: "Join"
+ui.button.leave: "Leave"
+ui.button.start: "Start"
+ui.button.edit_settings: "Edit settings"
+ui.button.edit_rolelist: "Edit role list"
+ui.button.cancel: "Cancel"
+ui.button.confirm: "Confirm"
+ui.button.unvote: "Unvote"
+ui.button.skip_ahead: "Skip ahead"
+ui.button.play_again: "Play again"
+ui.button.edit_will: "Edit will"
+ui.button.edit_note: "Edit death note"
+ui.button.yes: "Yes"
+ui.button.no: "No"
+
+# Confirmations: any Monke Admin may press Confirm (checked live); they expire after 60 seconds.
+# Vars: {player} and {target} are people
+confirm.what.skip: "End the current phase now?"
+confirm.what.replace: "Replace {player} with {target}?"
+confirm.what.quickstart: "Start this game?"
+confirm.expired: "This confirmation expired. Run the command again."
+confirm.cancelled: "Cancelled."
+panel.placeholder: "Pick a player to vote for"
+error.wrong_channel: "Admin commands only work in the Monke Commands channel."
+error.not_set_up: "This server is not set up yet. A server manager should run `monke setup`."
+# Vars: {causes} (the missing option)
+error.missing_arg: "You need to give a value for `{causes}`. Use `/help` to see how."
+
+# =============================================================================
+# SECTION 22: THE LOBBY (v1.1)
+# The lobby embed in Monke Lobby, its edit windows, and admin replies.
+# =============================================================================
+lobby.embed.title: "Monke Lobby"
+# Vars: {name} (who opened it)
+lobby.embed.opened_by: "Opened by {name}. Press **Join** to play."
+# Vars: {count}
+lobby.embed.players: "Players ({count})"
+lobby.embed.rolelist: "Role list ({count} roles)"
+lobby.embed.rolelist_default: "(the default list for this many players)"
+lobby.embed.settings: "Settings"
+lobby.embed.empty: "Nobody has joined yet."
+# Vars: {time} (how long without activity before it closes)
+lobby.embed.footer: "This lobby closes after {time} without activity."
+lobby.modal.settings_title: "Edit settings"
+lobby.modal.settings_label: "One setting per line, like night=3m"
+lobby.modal.rolelist_title: "Edit role list"
+lobby.modal.rolelist_label: "Role names or tokens (TK, TI, RT, RN, Any ...)"
+lobby.modal.rolelist_hint: "Leave empty to use the default list for the number of players."
+# Vars: {channel} (the Monke Lobby channel id)
+lobby.where: "The lobby is open in <#{channel}>."
+lobby.none_open: "There is no open lobby."
+# Vars: {player}
+lobby.added: "Added {player} to the lobby."
+lobby.removed: "Removed {player} from the lobby."
+lobby.rematch_empty: "Nobody from that game is still in the server, so there is nobody to rematch."
+# Quick start summary. Vars: {players}, {rolelist}, {settings}
+confirm.quickstart.details: "**Players:** {players}\n**Role list:** {rolelist}\n**Settings:** {settings}"
+
+# =============================================================================
+# SECTION 23: NIGHT RECAP, JOURNAL, WILL AND DEATH NOTE WINDOWS (v1.1)
+# =============================================================================
+# One DM at dawn with every private result of the night, one line each. Vars: {night}
+ui.recap.title: "**Night {night} recap**"
+# /journal: everything private you have learned so far. {when} is "Night 2" or "Day 3".
+ui.journal.header: "**Your journal**"
+ui.journal.empty: "You have not learned anything private yet."
+# Vars: {when}, {text}
+ui.journal.entry: "**{when}:** {text}"
+will.modal.title: "Your will"
+will.modal.label: "Shown to the town if you die"
+deathnote.modal.title: "Your death note"
+deathnote.modal.label: "Left on the body of anyone you kill"
+
+# =============================================================================
+# SECTION 24: PACING (v1.1)
+# =============================================================================
+# Banner line while Skip ahead is possible (Day 1, Day, Afternoon). Vars: {count}, {needed}
+ui.banner.skip: "Skip ahead: {count}/{needed}"
+# Monke Commands, spoiler-safe: it names the player, never a role. Vars: {player}, {count}
+afk.admin_warning: "{player} has been inactive for {count} days and has been warned."
+
+# =============================================================================
+# SECTION 25: /DIAGNOSE, GAME OVER AND ADMIN TOOLS (v1.1)
+# diagnose.check.<id> names a check; diagnose.fix.<id> is the one-line fix shown when it fails.
+# Monke Commands is public, so nothing here names a role or a player's secret.
+# =============================================================================
+diagnose.title: "Diagnose"
+# Vars: {label}
+diagnose.line.ok: "✅ {label}"
+# Vars: {label}, {detail}, {fix}
+diagnose.line.bad: "❌ {label}: {detail}\n   Fix: {fix}"
+diagnose.debug.on: "debug mode: ON"
+diagnose.debug.off: "debug mode: OFF"
+diagnose.fix.skipped_running: "A game is running, so I did not change any roles. I only reapplied the planned channel permissions."
+diagnose.fixed: "I repaired what I safely could. Run diagnose again to check."
+diagnose.check.permissions: "The bot has the permissions it needs"
+diagnose.fix.permissions: "Give the bot its permissions again with the invite link from `python check.py` (do not give it Administrator)."
+diagnose.check.hierarchy: "The bot's role is above Monke Admin and the slot roles"
+diagnose.fix.hierarchy: "Drag the bot's role above those roles in Server Settings > Roles."
+diagnose.check.channels: "All game channels are present"
+diagnose.fix.channels: "Run `monke diagnose fix:true` to recreate the missing channels."
+diagnose.check.overwrites: "Channel permissions are sane"
+diagnose.fix.overwrites: "Run `monke diagnose fix:true` to reapply the planned permissions."
+diagnose.check.slot_roles: "The 20 slot roles exist with no permissions"
+diagnose.fix.slot_roles: "Run `monke diagnose fix:true` to recreate the missing slot roles."
+diagnose.check.intents: "Server Members and Message Content intents are on"
+diagnose.fix.intents: "Turn both on in the Discord developer portal (Bot > Privileged Gateway Intents) and restart."
+diagnose.check.database: "The database is writable and passes its integrity check"
+diagnose.fix.database: "Stop the bot and restore the newest file in the backups folder over monke.db."
+diagnose.check.backups: "Backups exist"
+diagnose.fix.backups: "Restart the bot: it makes a backup at every start."
+diagnose.check.flavour: "flavour.yaml is valid"
+diagnose.fix.flavour: "Fix the problems listed by `monke reloadtext` (or run `python -m monke.text.check`)."
+diagnose.check.games: "No quarantined or stale games, no unfinished archives"
+diagnose.fix.games: "Run `monke export` to finish an archive; for a quarantined game see the bot log."
+diagnose.check.instance: "Only one copy of the bot is running"
+diagnose.fix.instance: "Stop the other copy, or start with --force-takeover after a hard crash."
+diagnose.check.debug: "Debug mode"
+diagnose.fix.debug: "Start without --debug to turn it off."
+
+# How a player ended, in the game-over list. Vars: {causes} (who killed them), {when} (Night 2, Day 3)
+ui.fate.survived: "survived"
+ui.fate.died: "{causes}, {when}"
+
+# The post-game recap. Vars: {player}, {target}, {text}
+end.recap.investigation: "{player} investigated {target}: {text}"
+# Vars: {target}, {count} (guilty), {needed} (innocent)
+end.recap.pardon: "{target} was pardoned ({count} guilty, {needed} innocent)."
+
+admin.replace.test_dm: "You are being added to a game of Town of Monke that is already in progress. Your role card follows."
+admin.replace.not_member: "That person is not in this server. Ask them to join first."
+admin.replace.is_playing: "That person is already playing in this game."
+# Vars: {settings}
+admin.settings.current: "Server defaults: {settings}"
+
+# Monke Commands, after a confirmed modkill.
+admin.modkill.done: "Done. The player will be removed (at once by day, at dawn if it is night)."

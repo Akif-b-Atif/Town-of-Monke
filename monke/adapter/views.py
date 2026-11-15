@@ -11,7 +11,10 @@ from ..engine import commands as K
 from ..errors import Rejected
 
 _GAME = r"[0-9a-f]+"
-EXPIRED = "This prompt has expired."
+
+
+def _t(interaction, key: str, state=None, **vars) -> str:
+    return interaction.client.presenter.composer.t(state, key, **vars)
 
 
 def _find(interaction: discord.Interaction, game_id: str, kind: str, token: str):
@@ -19,15 +22,15 @@ def _find(interaction: discord.Interaction, game_id: str, kind: str, token: str)
     service = interaction.client.service
     state = service.find_by_game_id(game_id)
     if state is None or state.status != C.RUNNING:
-        return None, EXPIRED
+        return None, _t(interaction, "error.stale_prompt")
     if kind == "verdict":
         if state.phase != C.TRIAL_VERDICT or str(state.phase_id) != token:
-            return None, EXPIRED
+            return None, _t(interaction, "error.stale_prompt", state)
     elif state.token_for(kind.upper()) != token:
-        return None, EXPIRED
+        return None, _t(interaction, "error.stale_prompt", state)
     slot = state.slot_of_user(interaction.user.id)
     if slot is None:
-        return None, "You are not in this game."
+        return None, _t(interaction, "error.not_in_game", state)
     return (state, slot), None
 
 
@@ -43,15 +46,17 @@ async def _submit_action(interaction, game_id, kind, token, ability, target, tog
     try:
         await interaction.client.service.submit(state.guild_id, K.SubmitAction(slot, ability, target, active))
     except Rejected as e:
-        return await interaction.response.send_message(e.reason, ephemeral=True)
+        return await interaction.response.send_message(interaction.client.presenter.composer.error(e, state),
+                                                       ephemeral=True)
     if toggle:
-        choice = "ON" if active else "OFF"
+        choice = _t(interaction, "ui.prompt.on" if active else "ui.prompt.off", state)
     elif target is None:
-        choice = "do nothing"
+        choice = _t(interaction, "ui.prompt.do_nothing", state)
     else:
         choice = interaction.client.presenter.name_of(state, target)
-    base = (interaction.message.content or "").split("\n\nCurrent choice:")[0]
-    await interaction.response.edit_message(content=f"{base}\n\nCurrent choice: **{choice}**")
+    base = (interaction.message.content or "").split("\n\n")[0]  # header and deadline; the choice follows
+    await interaction.response.edit_message(
+        content=f"{base}\n\n{_t(interaction, 'ui.prompt.current', state)}: **{choice}**")
 
 
 class ActionSelect(discord.ui.DynamicItem[discord.ui.Select],
@@ -93,10 +98,10 @@ class VerdictButton(discord.ui.DynamicItem[discord.ui.Button],
     STYLES = {"guilty": discord.ButtonStyle.danger, "innocent": discord.ButtonStyle.success,
               "abstain": discord.ButtonStyle.secondary}
 
-    def __init__(self, game, token, verdict):
+    def __init__(self, game, token, verdict, label=None):
         self.game, self.token, self.verdict = game, token, verdict
         super().__init__(discord.ui.Button(
-            label=verdict.capitalize(), style=self.STYLES[verdict],
+            label=label or verdict.capitalize(), style=self.STYLES[verdict],
             custom_id=f"monke:verdict:{game}:{token}:{verdict}"))
 
     @classmethod
@@ -111,30 +116,31 @@ class VerdictButton(discord.ui.DynamicItem[discord.ui.Button],
         try:
             await interaction.client.service.submit(state.guild_id, K.Verdict(slot, self.verdict))
         except Rejected as e:
-            return await interaction.response.send_message(e.reason, ephemeral=True)
-        await interaction.response.send_message(f"Your verdict: **{self.verdict}** (you can change it until time runs out).",
+            return await interaction.response.send_message(interaction.client.presenter.composer.error(e, state),
+                                                           ephemeral=True)
+        await interaction.response.send_message(_t(interaction, f"action.confirm.verdict.{self.verdict}", state),
                                                 ephemeral=True)
 
 
 DYNAMIC_ITEMS = (ActionSelect, ToggleButton, VerdictButton)
 
 
-def verdict_view(game_id: str, token: str) -> discord.ui.View:
+def verdict_view(game_id: str, token: str, labels: dict = None) -> discord.ui.View:
     v = discord.ui.View(timeout=None)
     for verdict in (C.GUILTY, C.INNOCENT, C.ABSTAIN):
-        v.add_item(VerdictButton(game_id, token, verdict))
+        v.add_item(VerdictButton(game_id, token, verdict, (labels or {}).get(verdict)))
     return v
 
 
-def prompt_view(payload: dict, names: dict) -> discord.ui.View:
-    """names: slot -> display label for select options."""
+def prompt_view(payload: dict, names: dict, label: str = "", do_nothing: str = "Do nothing") -> discord.ui.View:
+    """names: slot -> display label for select options. `label` and `do_nothing` come from the text system."""
     v = discord.ui.View(timeout=None)
     kind = payload["phase_kind"].lower()
     if payload["kind"] == "toggle":
         v.add_item(ToggleButton(payload["game_id"], kind, payload["token"], payload["ability_id"],
-                                label=payload["label"][:80]))
+                                label=label[:80]))
     else:
-        opts = [discord.SelectOption(label="Do nothing", value="none")]
+        opts = [discord.SelectOption(label=do_nothing, value="none")]
         for slot in payload["options"]:
             opts.append(discord.SelectOption(label=names.get(slot, f"Player {slot}")[:100], value=str(slot)))
         v.add_item(ActionSelect(payload["game_id"], kind, payload["token"], payload["ability_id"], options=opts))

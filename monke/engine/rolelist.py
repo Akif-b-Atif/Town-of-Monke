@@ -31,19 +31,19 @@ def normalize_token(raw: str):
 
 def validate_rolelist(tokens: list, n_players: int) -> list:
     if not C.MIN_PLAYERS <= n_players <= C.MAX_PLAYERS:
-        raise Rejected(f"A game needs {C.MIN_PLAYERS}-{C.MAX_PLAYERS} players (got {n_players}).")
+        raise Rejected("error.player_count", count=n_players)
     canon = []
     for raw in tokens:
         c = normalize_token(raw)
         if c is None:
-            raise Rejected(f"Unknown role list token: {raw!r}.")
+            raise Rejected("error.rolelist_unknown_token", causes=raw)
         canon.append(c)
     if len(canon) != n_players:
-        raise Rejected(f"The role list has {len(canon)} entries but there are {n_players} players.")
+        raise Rejected("error.rolelist_count", count=len(canon), needed=n_players)
     if canon.count("jailor") != 1:
-        raise Rejected("The role list needs exactly one Jailor.")
+        raise Rejected("error.rolelist_jailor")
     if canon.count("godfather") != 1:
-        raise Rejected("The role list needs exactly one Godfather.")
+        raise Rejected("error.rolelist_godfather")
     return canon
 
 
@@ -57,20 +57,20 @@ def generate_roles(canon: list, rng: random.Random) -> list:
     for t in fixed:
         d = get_def(t)
         if d.unique and t in used:
-            raise Rejected(f"{d.name} is unique but appears more than once in the role list.")
+            raise Rejected("error.rolelist_unique", role=d.name)
         used.add(t)
         out.append(t)
     for t in groups:
         pool = sorted(d.id for d in group_pool(t) if not (d.unique and d.id in used))
         if not pool:
-            raise Rejected(f"The role list has too many {t} entries: every {t} role is already taken.")
+            raise Rejected("error.rolelist_pool", group=t)
         pick = rng.choice(pool)
         used.add(pick)
         out.append(pick)
     for t in randoms:
         pool = sorted(d.id for d in random_pool(t) if not (d.unique and d.id in used))
         if not pool:
-            raise Rejected(f"No roles left for {t}.")
+            raise Rejected("error.rolelist_pool", group=t)
         pick = rng.choice(pool)
         used.add(pick)
         out.append(pick)

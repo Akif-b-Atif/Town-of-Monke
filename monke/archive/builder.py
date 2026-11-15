@@ -183,7 +183,7 @@ def build_archive(state, events: list, commands: list, chat_rows: list, meta: di
                 in_results = False
             elif in_results and e["type"] == "PrivateMessage":
                 results.append(_line(e["ts_ms"], f"Night {n}", "SYSTEM",
-                                     f"to {ctx.who(ctx.audience_slot(e['audience']))}: {e['payload'].get('text', '')}"))
+                                     f"to {ctx.who(ctx.audience_slot(e['audience']))}: {ctx.d.text(e['payload'])}"))
         if not got_trace:
             sec.append("(the night had not been resolved)")
         if len(results) == 2:

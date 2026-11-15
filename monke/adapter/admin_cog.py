@@ -12,7 +12,6 @@ from ..engine import Settings
 from ..engine import commands as K
 from ..errors import Rejected
 from ..service.game_service import StartAborted
-from . import strings as S
 from .parsing import parse_start
 from .textutil import rel, sanitize_name
 
@@ -44,6 +43,12 @@ class AdminCog(commands.Cog):
             return False  # the bot only listens in Monke Commands
         return self._is_admin(ctx.author, cfg)
 
+    def _t(self, key: str, state=None, **vars) -> str:
+        return self.bot.presenter.composer.t(state, key, **vars)
+
+    def _err(self, rej, state=None) -> str:
+        return self.bot.presenter.composer.error(rej, state)
+
     async def _say(self, ctx, text: str):
         """ADM-7: every admin reply names the invoker. No pings."""
         name = discord.utils.escape_mentions(discord.utils.escape_markdown(ctx.author.display_name))
@@ -53,19 +58,19 @@ class AdminCog(commands.Cog):
         if isinstance(error, commands.CheckFailure):
             return
         log.exception("admin command failed", exc_info=error)
-        await self._say(ctx, "Something went wrong running that command. Check the bot logs.")
+        await self._say(ctx, self._t("error.generic"))
 
     @commands.command(name="start")
     async def start(self, ctx, *, rest: str = ""):
         try:
             g = self.bot.service.get(ctx.guild.id)
             if g is not None and g.status in (C.STARTING, C.RUNNING, C.PAUSED):
-                return await self._say(ctx, S.GAME_ALREADY_RUNNING)
+                return await self._say(ctx, self._t("error.game_running"))
             bot_ids = {m.id for m in ctx.message.mentions if m.bot}
             req = parse_start(ctx.message.content, bot_ids)
             cfg = await self.bot.store.get_config(ctx.guild.id)
             settings = Settings.from_options(req.options, Settings(**cfg.default_settings) if cfg.default_settings else None)
-            await self._say(ctx, "Starting the game: assigning roles and sending DMs...")
+            await self._say(ctx, self._t("admin.start.starting"))
             names = {}
             for uid in req.user_ids:  # NAM-1: store each player's sanitised server name once, at start
                 member = ctx.guild.get_member(uid)
@@ -78,34 +83,34 @@ class AdminCog(commands.Cog):
             await self.bot.service.start_game(ctx.guild.id, req.user_ids, req.tokens, settings, names=names,
                                               invoker_user_id=ctx.author.id)
         except Rejected as e:
-            await self._say(ctx, f"Can't start: {e.reason}")
+            await self._say(ctx, self._t("admin.start.cant", causes=self._err(e)))
         except StartAborted as e:
             who = " ".join(f"<@{u}>" for u in e.failed_user_ids)
-            await self._say(ctx, f"Start aborted. These players must open their DMs (Privacy Settings > allow DMs): {who}")
+            await self._say(ctx, self._t("admin.start.dm_failed", causes=who))
         except Exception as e:
             log.exception("start failed")
-            await self._say(ctx, f"Start failed: {e}")
+            await self._say(ctx, self._t("error.generic"))
 
     @commands.command(name="status")
     async def status(self, ctx):
         g = self.bot.service.get(ctx.guild.id)
         if g is None:
-            return await self._say(ctx, "No game is running.")
+            return await self._say(ctx, self._t("error.no_game"))
         ends = rel(g.phase_ends_at) if g.status == C.RUNNING else "n/a"
-        await self._say(ctx, f"Status **{g.status}**, phase **{g.phase}**, ends {ends}, "
-                             f"{len(g.alive_slots())}/{len(g.players)} alive.")  # never shows roles
+        await self._say(ctx, self._t("admin.status", g, status=g.status, phase=g.phase, rel=ends,
+                                     alive=len(g.alive_slots()), total=len(g.players)))  # never shows roles
 
     async def _send(self, ctx, cmd, ok: str) -> bool:
         g = self.bot.service.get(ctx.guild.id)
         if g is None:
-            await self._say(ctx, "No game is running.")
+            await self._say(ctx, self._t("error.no_game"))
             return False
         try:
             await self.bot.service.submit(ctx.guild.id, cmd(g) if callable(cmd) else cmd)
         except Rejected as e:
-            await self._say(ctx, e.reason)
+            await self._say(ctx, self._err(e, g))
             return False
-        await self._say(ctx, ok)
+        await self._say(ctx, self._t(ok, g))
         return True
 
     def _skipped_too_soon(self, guild_id: int, g) -> bool:
@@ -120,20 +125,20 @@ class AdminCog(commands.Cog):
     async def skip(self, ctx):
         g = self.bot.service.get(ctx.guild.id)
         if g is not None and self._skipped_too_soon(ctx.guild.id, g):
-            return await self._say(ctx, S.SKIP_TOO_SOON)
+            return await self._say(ctx, self._t("admin.skip_too_soon"))
         if await self._send(ctx, lambda g: K.AdvancePhase(g.phase_id, force=True, by=sanitize_name(ctx.author.display_name, "Admin")),
-                                "Phase skipped."):
+                                "admin.skipped"):
             self._last_skip[ctx.guild.id] = time.time()
             await self.bot.service.record_admin_action(ctx.guild.id, ctx.author.id, "skip")  # ARC-6
 
     @commands.command(name="abort")
     async def abort(self, ctx):
-        if await self._send(ctx, K.Abort(), "Game aborted. The archive will be posted here shortly."):
+        if await self._send(ctx, K.Abort(), "admin.abort.done"):
             await self.bot.service.record_admin_action(ctx.guild.id, ctx.author.id, "abort")  # ARC-6
 
     @commands.command(name="resume")
     async def resume(self, ctx):
-        if await self._send(ctx, K.Resume(), "Game resumed."):
+        if await self._send(ctx, K.Resume(), "admin.resumed"):
             await self.bot.service.record_admin_action(ctx.guild.id, ctx.author.id, "resume")  # ARC-6
 
     @commands.command(name="export")
@@ -143,15 +148,26 @@ class AdminCog(commands.Cog):
         if g is not None and g.status == C.ENDED:
             await self.bot.service.record_admin_action(ctx.guild.id, ctx.author.id, "export", game_id)  # ARC-6
         elif g is not None and g.status in (C.STARTING, C.RUNNING, C.PAUSED):
-            return await self._say(ctx, S.EXPORT_LIVE_REFUSED)
-        await self._say(ctx, "Building the archive. This can take a minute.")
+            return await self._say(ctx, self._t("archive.live_refused"))
+        await self._say(ctx, self._t("archive.building"))
         try:
             msg = await self.bot.service.export(ctx.guild.id, game_id or None)
         except Rejected as e:
-            return await self._say(ctx, e.reason)
+            return await self._say(ctx, self._err(e))
         except Exception:
             log.exception("export failed")
-            return await self._say(ctx, S.EXPORT_FAILED)
+            return await self._say(ctx, self._t("archive.export.failed"))
+        await self._say(ctx, self._t(msg))
+
+    @commands.command(name="reloadtext")
+    async def reloadtext(self, ctx):
+        """Reload flavour.yaml. A file with errors is rejected and the previous text stays active."""
+        ok, report = self.bot.reload_text()
+        if ok:
+            warn = "\n".join(f"- {w}" for w in report.warnings[:15])
+            msg = self._t("admin.reload.ok", count=report.keys) + (f"\n{warn}" if warn else "")
+        else:
+            msg = self._t("admin.reload.failed", causes="\n".join(f"- {e}" for e in report.errors[:15]))
         await self._say(ctx, msg)
 
     @commands.command(name="admins")
@@ -161,5 +177,5 @@ class AdminCog(commands.Cog):
         role = ctx.guild.get_role(cfg.admin_role_id) if cfg else None
         holders = sorted(role.members, key=lambda m: m.id) if role else []
         if not holders:
-            return await self._say(ctx, S.NO_ADMINS)
-        await self._say(ctx, S.ADMINS_LIST.format(names=", ".join(f"<@{m.id}>" for m in holders)))
+            return await self._say(ctx, self._t("admin.no_admins"))
+        await self._say(ctx, self._t("admin.admins_list", names=", ".join(f"<@{m.id}>" for m in holders)))

@@ -39,7 +39,7 @@ class NullSink:
 
     def bind(self, service) -> None: ...
     def game_started(self, state, now=None) -> None: ...
-    def commit(self, before, after, cmd, events, now=None, deliver=False) -> None: ...
+    def commit(self, before, after, cmd, events, now=None, deliver=False, rendered=None) -> None: ...
     def rejected(self, state, cmd, reason, now=None) -> None: ...
     def dm(self, user_id, text, now=None) -> None: ...
     def post(self, guild_id, channel_kind, text, now=None) -> None: ...
@@ -120,7 +120,8 @@ class ConsoleSink(NullSink):
             self.emit("GAME", f"table #{slot:02d} {p.display_name or 'Player'} {r.name} {r.alignment}", state, ph, now)
 
     # ------------------------------------------------------------------ commands and their events
-    def commit(self, before, after, cmd, events, now=None, deliver=False) -> None:
+    def commit(self, before, after, cmd, events, now=None, deliver=False, rendered=None) -> None:
+        """`rendered` ({event seq: [Msg]}) lets the simulator print what would have been delivered."""
         d = Describer(after)
         kind = type(cmd).__name__
         ph_before = state_label(before)
@@ -139,29 +140,25 @@ class ConsoleSink(NullSink):
         for e in events:
             if e.type == "PhaseChanged":
                 ph = label(e.payload["phase"], e.payload["day_number"], e.payload["night_number"])[0]
-            self._event(d, after, e, ph, trace_steps, now, deliver)
+            self._event(d, after, e, ph, trace_steps, now, deliver, (rendered or {}).get(e.seq))
 
-    def _event(self, d, state, e, ph, trace_steps, now, deliver) -> None:
+    def _event(self, d, state, e, ph, trace_steps, now, deliver, msgs=None) -> None:
         t, p = e.type, e.payload
         ed = {"type": t, "payload": p, "audience": e.audience, "seq": e.seq}
-        if t in ("ActionRecorded", "PromptRequested"):
-            if t == "PromptRequested" and deliver:
-                slot = d.audience_slot(e.audience)
-                self.emit("PROMPT", f"{d.who(slot)} <- {p.get('label')} options="
-                          f"{[d.who(s) for s in p.get('options', [])] or p.get('kind')}", state, ph, now)
+        if deliver and msgs is not None:  # simulator: print the messages the presenter would deliver
+            for m in msgs:
+                if m.target.startswith("slot:"):
+                    who = d.who(int(m.target.split(":")[1]))
+                    tag = "PROMPT" if m.view and m.view[0] == "prompt" else "DM"
+                    self.emit(tag, f"{who} <- '{m.text()}'", state, ph, now)
+                elif m.effect != "purge_jail" and not m.meta.get("admin_only"):
+                    self.emit("POST", f"{m.target} '{m.text()}'", state, ph, now)
+        if t in ("ActionRecorded", "PromptRequested", "RoleAssigned", "PrivateMessage"):
             return
-        if t == "RoleAssigned":
-            if deliver:
-                self.emit("DM", f"{d.who(p['slot'])} <- 'You are the {p.get('role')}. {p.get('objective', '')}'",
-                          state, ph, now)
-            return
-        if t == "PrivateMessage":
-            if deliver:
-                self.emit("DM", f"{d.who(d.audience_slot(e.audience))} <- '{p.get('text', '')}'", state, ph, now)
-            return
-        if t == "Announcement" and e.audience == "public":
-            if deliver:
-                self.emit("POST", f"town '{p.get('text', '')}'", state, ph, now)
+        if t == "Announcement":
+            if e.audience == "admin":
+                for src, text in d.event_lines(ed):
+                    self.emit(_SOURCE_TAG.get(src, "GAME"), text, state, ph, now)
             return
         if t == "PlayerDied":
             killers = sorted({s["actor"] for s in trace_steps if s["step"] == "attack" and s["target"] == p["slot"]

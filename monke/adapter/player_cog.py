@@ -14,6 +14,9 @@ class PlayerCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    def _t(self, key, state=None, **vars):
+        return self.bot.presenter.composer.t(state, key, **vars)
+
     def _slot(self, interaction):
         g = self.bot.service.get(interaction.guild_id)
         slot = g.slot_of_user(interaction.user.id) if g else None
@@ -22,17 +25,18 @@ class PlayerCog(commands.Cog):
     async def _vote(self, interaction: discord.Interaction, target_user_id):
         g, slot = self._slot(interaction)
         if g is None or slot is None:
-            return await interaction.response.send_message("You are not in a game here.", ephemeral=True)
+            return await interaction.response.send_message(self._t("error.not_in_game"), ephemeral=True)
         target = None
         if target_user_id is not None:
             target = g.slot_of_user(target_user_id)
             if target is None:
-                return await interaction.response.send_message("That player is not in the game.", ephemeral=True)
+                return await interaction.response.send_message(self._t("error.unknown_target", g), ephemeral=True)
         try:
             await self.bot.service.submit(interaction.guild_id, K.Vote(slot, target))
         except Rejected as e:
-            return await interaction.response.send_message(e.reason, ephemeral=True)
-        await interaction.response.send_message("Vote recorded." if target else "Vote removed.", ephemeral=True)
+            return await interaction.response.send_message(self.bot.presenter.composer.error(e, g), ephemeral=True)
+        await interaction.response.send_message(self._t("ui.vote.recorded" if target else "ui.vote.removed", g),
+                                                ephemeral=True)
 
     @app_commands.command(name="vote", description="Vote to put a player on trial (Noon only)")
     @app_commands.guild_only()
@@ -50,5 +54,5 @@ class PlayerCog(commands.Cog):
         try:
             n = await self.bot.service.resend_prompts(interaction.guild_id, interaction.user.id)
         except Rejected as e:
-            return await interaction.response.send_message(e.reason, ephemeral=True)
-        await interaction.response.send_message(f"Sent {n} prompt(s) to your DMs.", ephemeral=True)
+            return await interaction.response.send_message(self.bot.presenter.composer.error(e), ephemeral=True)
+        await interaction.response.send_message(self._t("ui.resend.done", count=n), ephemeral=True)

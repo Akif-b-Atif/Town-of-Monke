@@ -93,5 +93,8 @@ def test_death_text_uses_the_stored_name():
     s = _game()
     s = handle(s, K.BeginGame(), 0.0).state
     from monke.engine import deaths
-    ev = deaths.kill(s, 3, [C.LYNCHED])
-    assert fmt_player(s, 3) in ev.payload["text"]
+    deaths.kill(s, 3, [C.LYNCHED])
+    from monke.compose import Composer
+    from monke.text.bank import default_bank
+    lines = Composer(default_bank(), fixed=True).death_lines(s, 3)
+    assert fmt_player(s, 3) in lines[0] and fmt_player(s, 3) in lines[1]
