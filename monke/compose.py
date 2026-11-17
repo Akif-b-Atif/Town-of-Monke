@@ -226,7 +226,15 @@ class Composer:
 
     def _e_PhaseChanged(self, state, e):
         text, variants = self.banner(state, e.payload)
-        return [Msg("town", text, effect="banner", meta={"variants": variants, "phase_id": e.payload["phase_id"]})]
+        out = [Msg("town", text, effect="banner", meta={"variants": variants, "phase_id": e.payload["phase_id"]})]
+        if e.payload["phase"] == C.NOON:  # CMD-5: a vote panel; its tally is edited, not reposted
+            from .adapter.info import tally_embed
+            names = {s: self.name(state, s) for s in state.alive_slots()}
+            view = ("panel", state.game_id, e.payload["phase_id"], names, self.t(state, "panel.placeholder"),
+                    self.t(state, "ui.button.unvote"))
+            out.append(Msg("town", embed=tally_embed(self, state), view=view, effect="panel",
+                           meta={"phase_id": e.payload["phase_id"]}))
+        return out
 
     def _e_DawnReport(self, state, e):
         return [Msg("town", self.dawn(state, e.payload))]

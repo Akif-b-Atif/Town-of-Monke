@@ -21,6 +21,7 @@ def migrate_v1_to_v2(d: dict) -> dict:
     d.setdefault("phase_started_at", max(0.0, d.get("phase_ends_at", 0.0) - length))
     d.setdefault("skip_votes", [])
     d.setdefault("night_confirmed", [])
+    d.setdefault("night_declined", [])
     d.setdefault("active_today", [])
     d.setdefault("settings_resolved", dict(d.get("settings", {})))
     players = {}

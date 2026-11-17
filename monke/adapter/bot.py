@@ -19,12 +19,12 @@ from ..service.capture import ChatCapture
 from ..service.game_service import GameService
 from ..service.store import Store
 from . import views
-from .admin_cog import AdminCog
+from .dispatch import Dispatcher
+from .handlers import COMMANDS
 from .chatlog import ChatLogger
-from .player_cog import PlayerCog
 from .relay import JailRelay
 from .renderer import DiscordPresenter
-from .setup_cog import SetupCog, apply_commands_channel_permissions
+from .setup_cog import apply_commands_channel_permissions
 
 log = logging.getLogger("monke.bot")
 
@@ -129,9 +129,9 @@ class MonkeBot(commands.Bot):
         self._prune_loop.start()
         self._spawn(self._heartbeat_forever(), "heartbeat")
         self.add_dynamic_items(*views.DYNAMIC_ITEMS)  # prompts and verdict buttons survive restarts
-        await self.add_cog(SetupCog(self))
-        await self.add_cog(AdminCog(self))
-        await self.add_cog(PlayerCog(self))
+        self.dispatcher = Dispatcher(self, COMMANDS)  # CMD-1: every command comes from the registry
+        for cmd in self.dispatcher.slash_commands():
+            self.tree.add_command(cmd)
         await self.tree.sync()
 
     async def _heartbeat_forever(self) -> None:
@@ -211,7 +211,7 @@ class MonkeBot(commands.Bot):
                 return
         except Exception:
             log.exception("relay failed")
-        await self.process_commands(message)
+        await self.dispatcher.on_message(message)
 
     async def on_member_remove(self, member: discord.Member) -> None:
         g = self.service.get(member.guild.id)

@@ -112,6 +112,26 @@ log file. **The console shows every role. Do not share it or stream it during a 
   console is a terminal and `NO_COLOR` is unset.
 - Watch a simulated game without Discord: `python -m monke.sim.cli --games 1 --seed 7 --players 8 --debug`.
 
+### Commands
+
+Every command is defined once in a registry (`monke/adapter/handlers.py`), which generates the slash commands, the
+`monke ...` text forms, `/help` and the permission checks. Slash commands are primary; the `monke ...` prefix exists for
+admin and server commands only.
+
+**Players** (slash, answered privately; usable anywhere in the server by anyone in the game, dead players included):
+`/vote [player]` (autocompletes living players, or use the vote panel posted at Noon), `/unvote`, `/votes`, `/alive`,
+`/rolelist [count]`, `/timer`, `/role`, `/help` (shows only what works for you right now), `/resend`. Someone who is not in
+the game is told so and nothing else.
+
+**Admins** (Monke Admin role, checked live; only in Monke Commands; slash or `monke ...`): `start`, `status`, `skip`,
+`abort`, `resume`, `export [game_id]`, `admins`, `reloadtext`. `skip`, `abort` and `teardown` ask for confirmation with
+Confirm / Cancel buttons that any Monke Admin may press and that expire after 60 seconds.
+**Server managers:** `setup`, `teardown [--force]`.
+
+During a phase the bot posts "Only N remain." when a quarter of it is left (at least 30 s before the end, at most 15 min;
+phases under a minute get none), and at Night nudges by DM anyone who has a prompt but has not chosen yet. Old prompts are
+edited to "Expired: ..." when their phase ends.
+
 ### Editing the text (`flavour.yaml`)
 
 Everything players read lives in **`flavour.yaml`** in the project folder: banners, death and dawn lines, vote messages,

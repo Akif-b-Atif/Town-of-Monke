@@ -17,6 +17,7 @@ from ..engine import commands as K
 from ..engine import events as E
 from ..debug import NullSink
 from ..archive.channels import session_for
+from ..engine.pacing import nudge_targets, warning_lead
 from ..errors import Rejected
 from ..logsetup import set_context
 from .crash import CrashPoints
@@ -60,7 +61,7 @@ class GameService:
         self.post_game_seconds = post_game_seconds
         self.games: dict = {}  # guild_id -> GameState
         self._locks: dict = {}
-        self.scheduler = Scheduler(self._on_timer, clock)
+        self.scheduler = Scheduler(self._on_timer, clock, self._on_warn)
         self._bg: set = set()
         self.sink = sink or NullSink()  # DBG-6: where debug output goes (nothing by default)
         self.sink.bind(self)
@@ -222,6 +223,9 @@ class GameService:
     def _rearm(self, state: GameState) -> None:
         if state.status == C.RUNNING:
             self.scheduler.arm(state.game_id, state.phase_ends_at, state.phase_id)
+            lead = warning_lead(state.phase_length)  # QOL-2: 25% of the phase, 30 s to 15 min, none under 60 s
+            if lead is not None and state.phase_ends_at - lead > self.clock():
+                self.scheduler.arm_warning(state.game_id, state.phase_ends_at - lead, state.phase_id)
             self.sink.note("TIMER", f"armed phase {state.phase_id} for {max(0.0, state.phase_ends_at - self.clock()):.0f}s", state)
         else:
             self.scheduler.cancel(state.game_id)
@@ -534,10 +538,31 @@ class GameService:
         await self._commit(state.guild_id, K.ShiftDeadline(now + max(remaining, floor)), already_locked=True)
         return True
 
-    async def _call(self, name: str, state: GameState, *args, default=None):
+    async def _call(self, name: str, state: GameState, *args, default=None, **kw):
         """A presenter hook that fakes in older tests may not have."""
         fn = getattr(self.presenter, name, None)
-        return default if fn is None else await fn(state, *args)
+        return default if fn is None else await fn(state, *args, **kw)
+
+    async def _on_warn(self, game_id: str, phase_id: int) -> None:
+        """QOL-2: 'Only {time} remain.' in Town Centre; at Night a DM nudge to each prompt holder with no action
+        recorded. Ignored if the phase changed or the moment has passed."""
+        state = self.find_by_game_id(game_id)
+        if state is None:
+            return
+        async with self.lock(state.guild_id):
+            st = self.games.get(state.guild_id)
+            if st is None or st.phase_id != phase_id or st.status != C.RUNNING:
+                return
+            remaining = st.phase_ends_at - self.clock()
+            if remaining <= 1:
+                return
+            self.sink.note("TIMER", f"warning: {remaining:.0f}s remain", st)
+            try:
+                await self._call("post_key", st, "town", "phase.warning", time=remaining)
+                for slot in nudge_targets(st):
+                    await self._call("dm_key", st, slot, "night.nudge", time=remaining)
+            except Exception:
+                log.exception("warning could not be posted")
 
     async def _pause_quietly(self, state: GameState, reason: str) -> None:
         """Pause without touching Discord (its channels may be gone)."""

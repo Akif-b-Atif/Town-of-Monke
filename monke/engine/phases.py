@@ -43,7 +43,7 @@ def _enter(s: GameState, phase: str, now: float, duration: float, events: list, 
     s.phase_id += 1
     s.phase_ends_at = now + duration
     s.phase_started_at, s.phase_length = now, duration  # FIX-4
-    s.skip_votes, s.night_confirmed = [], []  # PACE-2/3: these never outlive a phase
+    s.skip_votes, s.night_confirmed, s.night_declined = [], [], []  # PACE-2/3, QOL-2: never outlive a phase
     ctx.setdefault("day", s.day_number)
     ctx.setdefault("night", s.night_number)
     events.append(E.ev(E.T.PHASE_CHANGED, phase=phase, phase_id=s.phase_id, ends_at=s.phase_ends_at,
@@ -282,8 +282,12 @@ def _submit_action(s: GameState, cmd: K.SubmitAction, now: float, events: list) 
         cleared = (ab.targeting == "toggle" and not cmd.active) or (ab.targeting == "single" and cmd.target_slot is None)
         if cleared:
             s.night_actions.pop(cmd.actor_slot, None)
+            if cmd.actor_slot not in s.night_declined:
+                s.night_declined.append(cmd.actor_slot)  # an explicit 'do nothing' counts as recorded (QOL-2)
         else:
             s.night_actions[cmd.actor_slot] = Action(cmd.actor_slot, ab.id, cmd.target_slot, cmd.active, now)
+            if cmd.actor_slot in s.night_declined:
+                s.night_declined.remove(cmd.actor_slot)
     events.append(E.ev(E.T.ACTION_RECORDED, E.to_slot(cmd.actor_slot), ability_id=ab.id,
                        target=cmd.target_slot, active=cmd.active))
 

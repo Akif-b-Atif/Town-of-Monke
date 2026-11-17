@@ -73,6 +73,7 @@ class GameState:
     phase_length: float = 0.0  # FIX-4/REL-6: the length the current phase was given
     skip_votes: list = field(default_factory=list)  # PACE-2: slots that pressed Skip ahead
     night_confirmed: list = field(default_factory=list)  # PACE-3: slots that confirmed their night
+    night_declined: list = field(default_factory=list)  # QOL-2: slots that explicitly chose to do nothing
     active_today: list = field(default_factory=list)  # PACE-7: slots active since the last dusk
     settings_resolved: dict = field(default_factory=dict)  # LOB-5: what the layers resolved to at start
 

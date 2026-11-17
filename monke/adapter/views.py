@@ -122,7 +122,66 @@ class VerdictButton(discord.ui.DynamicItem[discord.ui.Button],
                                                 ephemeral=True)
 
 
-DYNAMIC_ITEMS = (ActionSelect, ToggleButton, VerdictButton)
+# ---------------------------------------------------------------------------------------- vote panel (CMD-5)
+async def _panel_vote(interaction: discord.Interaction, game_id: str, phase: str, target):
+    service = interaction.client.service
+    state = service.find_by_game_id(game_id)
+    if state is None or state.status != C.RUNNING or state.phase != C.NOON or str(state.phase_id) != phase:
+        return await interaction.response.send_message(_t(interaction, "error.stale_prompt", state), ephemeral=True)
+    slot = state.slot_of_user(interaction.user.id)
+    if slot is None:
+        return await interaction.response.send_message(_t(interaction, "error.not_in_game", state), ephemeral=True)
+    try:
+        await service.submit(state.guild_id, K.Vote(slot, target))
+    except Rejected as e:
+        return await interaction.response.send_message(interaction.client.presenter.composer.error(e, state),
+                                                       ephemeral=True)
+    await interaction.response.send_message(_t(interaction, "ui.vote.recorded" if target is not None else
+                                               "ui.vote.removed", state), ephemeral=True)
+
+
+class PanelSelect(discord.ui.DynamicItem[discord.ui.Select],
+                  template=rf"monke:panel:(?P<game>{_GAME}):(?P<phase>\d+)"):
+    def __init__(self, game, phase, options=None, placeholder=""):
+        self.game, self.phase = game, phase
+        opts = options or [discord.SelectOption(label="-", value="-")]
+        super().__init__(discord.ui.Select(custom_id=f"monke:panel:{game}:{phase}", options=opts[:25],
+                                           placeholder=placeholder[:150] or None))
+
+    @classmethod
+    async def from_custom_id(cls, interaction, item, match, /):
+        return cls(match["game"], match["phase"])
+
+    async def callback(self, interaction: discord.Interaction):
+        raw = interaction.data["values"][0]
+        await _panel_vote(interaction, self.game, self.phase, int(raw) if raw.isdigit() else None)
+
+
+class PanelUnvote(discord.ui.DynamicItem[discord.ui.Button],
+                  template=rf"monke:panelun:(?P<game>{_GAME}):(?P<phase>\d+)"):
+    def __init__(self, game, phase, label="Unvote"):
+        self.game, self.phase = game, phase
+        super().__init__(discord.ui.Button(label=label, style=discord.ButtonStyle.secondary,
+                                           custom_id=f"monke:panelun:{game}:{phase}"))
+
+    @classmethod
+    async def from_custom_id(cls, interaction, item, match, /):
+        return cls(match["game"], match["phase"])
+
+    async def callback(self, interaction: discord.Interaction):
+        await _panel_vote(interaction, self.game, self.phase, None)
+
+
+def panel_view(game_id: str, phase_id, names: dict, placeholder: str, unvote_label: str) -> discord.ui.View:
+    """A select menu of living players and an Unvote button. `names`: slot -> label."""
+    v = discord.ui.View(timeout=None)
+    opts = [discord.SelectOption(label=label[:100], value=str(slot)) for slot, label in sorted(names.items())]
+    v.add_item(PanelSelect(game_id, str(phase_id), opts, placeholder))
+    v.add_item(PanelUnvote(game_id, str(phase_id), unvote_label))
+    return v
+
+
+DYNAMIC_ITEMS = (ActionSelect, ToggleButton, VerdictButton, PanelSelect, PanelUnvote)
 
 
 def verdict_view(game_id: str, token: str, labels: dict = None) -> discord.ui.View:

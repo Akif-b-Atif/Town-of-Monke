@@ -13,7 +13,10 @@ import discord
 from .. import constants as C
 from ..names import fmt_player
 from ..service.store import GuildConfig, Store
+import asyncio
+
 from .. import compose as composer
+from . import info
 from ..text.bank import default_bank
 from ..service.outbox import GuildWriter, Retryable, is_retryable
 from ..text.keys import TEXT_KEYS
@@ -38,6 +41,9 @@ class DiscordPresenter:
         self._banners: dict = {}  # guild_id -> last pinned phase banner message
         self.sink = NullSink()  # DBG-6: set by the bot
         self._writers: dict = {}  # guild_id -> GuildWriter (REL-17)
+        self._panels: dict = {}  # game_id -> (phase_id, message): the live vote panel (CMD-5)
+        self._panel_tasks: dict = {}
+        self._prompts: dict = {}  # game_id -> [{token, kind, message, label}] for QOL-8
 
     # ------------------------------------------------------------ lookups
     async def _cfg(self, guild_id: int) -> GuildConfig:
@@ -99,12 +105,13 @@ class DiscordPresenter:
                         continue
                 names[slot] = m.display_name
 
-    async def _dm(self, user_id: int, **kw) -> bool:
+    async def _dm(self, user_id: int, **kw):
+        """-> the sent message (truthy), or False when the player cannot be reached (closed DMs)."""
         try:
             user = self.bot.get_user(user_id) or await self.bot.fetch_user(user_id)
-            await user.send(allowed_mentions=NO_MENTIONS, **kw)  # allow-send: DMs are not game channels
+            msg = await user.send(allowed_mentions=NO_MENTIONS, **kw)  # allow-send: DMs are not game channels
             self.sink.dm(user_id, flatten_post(kw.get("content"), kw.get("embeds") or ([kw["embed"]] if kw.get("embed") else [])))
-            return True
+            return msg or True
         except discord.Forbidden as e:  # closed DMs: permanent, reported to the admin, never retried
             log.warning("DM to %s failed: %s", user_id, e)
             return False
@@ -271,6 +278,8 @@ class DiscordPresenter:
             return None
         if spec[0] == "verdict":
             return views.verdict_view(spec[1], spec[2], spec[3] if len(spec) > 3 else None)
+        if spec[0] == "panel":
+            return views.panel_view(spec[1], spec[2], spec[3], spec[4], spec[5])
         return views.prompt_view(spec[1], spec[2], spec[3], spec[4])
 
     async def render(self, state, events: list, outbox=None) -> None:
@@ -291,6 +300,61 @@ class DiscordPresenter:
                     if is_retryable(exc):
                         raise
                     log.exception("rendering %s failed", e.type)
+            try:
+                if e.type == "PhaseChanged":
+                    await self._after_phase(state)
+                elif e.type == "VoteUpdated":
+                    self._schedule_panel_refresh(state)
+            except Exception:
+                log.exception("post-phase housekeeping failed")
+
+    # ---- vote panel (CMD-5) and prompt hygiene (QOL-8) ----
+    PANEL_DEBOUNCE = 1.0
+
+    def _schedule_panel_refresh(self, state) -> None:
+        """Edit the live tally at most once a second (priority P3, latest wins) instead of reposting."""
+        gid = state.game_id
+        if gid in self._panel_tasks or gid not in self._panels:
+            return
+
+        async def run():
+            try:
+                await asyncio.sleep(self.PANEL_DEBOUNCE)
+                st = self.bot.service.get(state.guild_id) or state
+                panel = self._panels.get(gid)
+                if panel is None or st.phase != C.NOON or panel[0] != st.phase_id:
+                    return
+                emb = self._embed(info.tally_embed(self.composer, st))
+                await self.writer(st.guild_id).run(GuildWriter.P3, lambda: panel[1].edit(embed=emb),
+                                                   key=("panel", gid))
+            except Exception:
+                log.exception("could not refresh the vote panel")
+            finally:
+                self._panel_tasks.pop(gid, None)
+        self._panel_tasks[gid] = asyncio.create_task(run())
+
+    async def _after_phase(self, state) -> None:
+        """When a phase changes: close the vote panel and expire old prompts ('Expired: ...', components removed).
+        Failures are ignored: the buttons are already dead (their freshness token no longer matches)."""
+        panel = self._panels.get(state.game_id)
+        if panel is not None and (state.phase != C.NOON or panel[0] != state.phase_id):
+            self._panels.pop(state.game_id, None)
+            emb = self._embed(info.tally_embed(self.composer, state))
+            try:
+                await self.writer(state.guild_id).run(GuildWriter.P3, lambda: panel[1].edit(embed=emb, view=None))
+            except Exception:
+                log.debug("could not close the vote panel", exc_info=True)
+        kept = []
+        for entry in self._prompts.get(state.game_id, []):
+            if state.token_for(entry["kind"]) == entry["token"]:
+                kept.append(entry)
+                continue
+            text = self.composer.t(state, "ui.prompt.expired", what=entry["label"])
+            try:
+                await self.writer(state.guild_id).run(GuildWriter.P3, lambda e=entry: e["message"].edit(content=text, view=None))
+            except Exception:
+                log.debug("could not expire a prompt", exc_info=True)
+        self._prompts[state.game_id] = kept
 
     async def _send(self, state, outbox, target: str, priority: int, fn):
         """One message: through the guild's ordered writer, and through the outbox when there is one."""
@@ -316,6 +380,12 @@ class DiscordPresenter:
                 m.target, m.content or None, embeds, view, session=state, mentions=m.mentions))
             if m.effect == "banner" and sent:
                 await self._pin_banner(state, sent[0])
+            elif m.effect == "panel" and sent:
+                self._panels[state.game_id] = (m.meta["phase_id"], sent[0])
+                try:  # remembered with the outbox so a restart can find the panel again
+                    await self.store.outbox_add(state.game_id, -int(m.meta["phase_id"]), 0, "panel", sent[0].id)
+                except Exception:
+                    log.exception("could not store the vote panel message id")
             elif m.effect == "pin" and sent:
                 try:
                     await sent[0].pin(reason="Town of Monke")
@@ -335,6 +405,10 @@ class DiscordPresenter:
                 self.sink.prompt(state, slot, m.meta.get("label", ""), m.view[1]["options"])
             ok = await self._send(state, outbox, f"dm:{slot}", GuildWriter.P2,
                                   lambda: self._dm(state.players[slot].user_id, **dm))
+            if m.view and m.view[0] == "prompt" and ok:  # QOL-8: remember it so it can be expired
+                p = m.view[1]
+                self._prompts.setdefault(state.game_id, []).append(
+                    {"token": p["token"], "kind": p["phase_kind"], "message": ok, "label": m.meta.get("label", "")})
             if ok is False:  # a permanent failure (closed DMs): reported, and counted as rendered
                 await self.notify_admin(state.guild_id, self.composer.t(state, "admin.dm_failed", player=slot))
         return []
@@ -536,6 +610,9 @@ class DiscordPresenter:
         digest = "\n".join(f"- {r['content'][:120]}" for r in rows[:10]) or "-"
         await self._dm(jailor.user_id, content=self.composer.t(state, "rel.jailor_gap", count=len(rows),
                                                                 digest=digest))
+
+    async def dm_key(self, state, slot: int, key: str, **vars) -> None:
+        await self._dm(state.players[slot].user_id, content=self.composer.t(state, key, **vars))
 
     async def post_key(self, state, channel: str, key: str, **vars) -> None:
         await self.send_logged(channel, self.composer.t(state, key, **vars), session=state)
