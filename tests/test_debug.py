@@ -99,7 +99,7 @@ def test_the_service_and_presenter_hooks_print_commands_and_exact_delivered_text
         async def remove_slot_roles(self, s): pass
         async def send_role_dms(self, s, e): return []
         async def apply_permissions(self, s, force=False): pass
-        async def render(self, s, e): pass
+        async def render(self, s, e, outbox=None): pass
         async def reconcile(self, s): pass
         async def cleanup(self, s): pass
         async def notify_admin(self, g, t): pass

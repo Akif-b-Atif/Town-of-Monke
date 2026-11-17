@@ -8,6 +8,7 @@ import time
 from typing import Awaitable, Callable
 
 log = logging.getLogger("monke.scheduler")
+SLICE = 5.0  # seconds
 
 
 class Scheduler:
@@ -27,7 +28,11 @@ class Scheduler:
 
     async def _run(self, game_id: str, ends_at: float, phase_id: int) -> None:
         try:
-            await asyncio.sleep(max(0.0, ends_at - self._clock()))
+            while True:  # REL-14: short slices, rechecking the wall clock, so a sleep or clock jump cannot hang a phase
+                left = ends_at - self._clock()
+                if left <= 0:
+                    break
+                await asyncio.sleep(min(SLICE, left))
             await self._on_fire(game_id, phase_id)
         except asyncio.CancelledError:
             pass

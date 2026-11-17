@@ -15,6 +15,7 @@ from ..names import fmt_player
 from ..service.store import GuildConfig, Store
 from .. import compose as composer
 from ..text.bank import default_bank
+from ..service.outbox import GuildWriter, Retryable, is_retryable
 from ..text.keys import TEXT_KEYS
 from . import planner, views
 from ..debug import NullSink
@@ -36,6 +37,7 @@ class DiscordPresenter:
         self._names: dict = {}  # game_id -> {slot: live display name}, only a fallback for pre-NAM games
         self._banners: dict = {}  # guild_id -> last pinned phase banner message
         self.sink = NullSink()  # DBG-6: set by the bot
+        self._writers: dict = {}  # guild_id -> GuildWriter (REL-17)
 
     # ------------------------------------------------------------ lookups
     async def _cfg(self, guild_id: int) -> GuildConfig:
@@ -49,6 +51,10 @@ class DiscordPresenter:
         if g is None:
             raise RuntimeError(f"Guild {guild_id} not available")
         return g
+
+    def writer(self, guild_id: int) -> GuildWriter:
+        """All Discord writes for a guild go through one ordered worker (REL-17)."""
+        return self._writers.setdefault(guild_id, GuildWriter())
 
     def name_of(self, state, slot: int, bold: bool = False) -> str:
         """'Maya (#3)' (NAM-2). Games that started before names were stored fall back to the live
@@ -99,7 +105,12 @@ class DiscordPresenter:
             await user.send(allowed_mentions=NO_MENTIONS, **kw)  # allow-send: DMs are not game channels
             self.sink.dm(user_id, flatten_post(kw.get("content"), kw.get("embeds") or ([kw["embed"]] if kw.get("embed") else [])))
             return True
-        except (discord.Forbidden, discord.HTTPException) as e:
+        except discord.Forbidden as e:  # closed DMs: permanent, reported to the admin, never retried
+            log.warning("DM to %s failed: %s", user_id, e)
+            return False
+        except discord.HTTPException as e:
+            if is_retryable(e):
+                raise  # REL-7: 5xx and 429 keep the event unrendered so it is retried, not lost
             log.warning("DM to %s failed: %s", user_id, e)
             return False
 
@@ -152,6 +163,11 @@ class DiscordPresenter:
                                            add_reactions=False, send_messages_in_threads=False)
 
     async def apply_permissions(self, state, force: bool = False, archiving: bool = False) -> None:
+        """P0: a transition's permissions complete before its announcements (REL-17, DEAD-1)."""
+        await self.writer(state.guild_id).run(
+            GuildWriter.P0, lambda: self._apply_permissions(state, force, archiving))
+
+    async def _apply_permissions(self, state, force: bool = False, archiving: bool = False) -> None:
         guild, cfg = self._guild(state.guild_id), await self._cfg(state.guild_id)
         plans = planner.plan(state, archiving=archiving)
         for key, grants in plans.items():
@@ -257,7 +273,9 @@ class DiscordPresenter:
             return views.verdict_view(spec[1], spec[2], spec[3] if len(spec) > 3 else None)
         return views.prompt_view(spec[1], spec[2], spec[3], spec[4])
 
-    async def render(self, state, events: list) -> None:
+    async def render(self, state, events: list, outbox=None) -> None:
+        """Deliver events. Retryable Discord failures propagate (the service keeps the event unrendered and
+        retries); anything else is logged and skipped. `outbox` makes every message exactly-once (REL-7)."""
         for e in events:
             if e.type == "RoleAssigned":
                 continue  # role cards go out through send_role_dms, the start gate
@@ -268,11 +286,19 @@ class DiscordPresenter:
                 continue
             for m in msgs:
                 try:
-                    await self._deliver(state, e, m)
-                except Exception:
+                    await self._deliver(state, e, m, outbox)
+                except Exception as exc:
+                    if is_retryable(exc):
+                        raise
                     log.exception("rendering %s failed", e.type)
 
-    async def _deliver(self, state, e, m) -> list:
+    async def _send(self, state, outbox, target: str, priority: int, fn):
+        """One message: through the guild's ordered writer, and through the outbox when there is one."""
+        async def go():
+            return await self.writer(state.guild_id).run(priority, fn)
+        return await (outbox.once(target, go) if outbox is not None else go())
+
+    async def _deliver(self, state, e, m, outbox=None) -> list:
         if m.meta.get("admin_only"):
             if state.status in (C.RUNNING, C.PAUSED):  # XC-6: admin-audience events feed the archive only while live
                 log.info("admin-only event not shown (game %s)", state.game_id)
@@ -286,8 +312,8 @@ class DiscordPresenter:
         embeds = [self._embed(m.embed)] if m.embed else []
         view = self._view(m.view)
         if m.target in GAME_CHANNELS:
-            sent = await self.send_logged(m.target, m.content or None, embeds, view, session=state,
-                                          mentions=m.mentions)
+            sent = await self._send(state, outbox, m.target, GuildWriter.P1, lambda: self.send_logged(
+                m.target, m.content or None, embeds, view, session=state, mentions=m.mentions))
             if m.effect == "banner" and sent:
                 await self._pin_banner(state, sent[0])
             elif m.effect == "pin" and sent:
@@ -297,7 +323,8 @@ class DiscordPresenter:
                     pass
             return sent
         if m.target == "commands":
-            await self.notify_admin(state.guild_id, m.content)
+            await self._send(state, outbox, "commands", GuildWriter.P1,
+                             lambda: self.notify_admin(state.guild_id, m.content))
             return []
         if m.target.startswith("slot:"):
             slot = int(m.target.split(":")[1])
@@ -306,7 +333,9 @@ class DiscordPresenter:
                 dm["embeds"] = embeds
             if m.view and m.view[0] == "prompt":
                 self.sink.prompt(state, slot, m.meta.get("label", ""), m.view[1]["options"])
-            if not await self._dm(state.players[slot].user_id, **dm):
+            ok = await self._send(state, outbox, f"dm:{slot}", GuildWriter.P2,
+                                  lambda: self._dm(state.players[slot].user_id, **dm))
+            if ok is False:  # a permanent failure (closed DMs): reported, and counted as rendered
                 await self.notify_admin(state.guild_id, self.composer.t(state, "admin.dm_failed", player=slot))
         return []
 
@@ -322,6 +351,10 @@ class DiscordPresenter:
         except discord.HTTPException:
             pass
         self._banners[state.guild_id] = message
+        try:  # FIX-6: remembered across restarts, so recovery can unpin the old banner
+            await self.store.set_banner_message(state.game_id, message.id)
+        except Exception:
+            log.exception("could not store the banner message id")
 
     # ------------------------------------------------------------ archive (ARC-9 to ARC-11)
     async def lock_for_archive(self, state) -> None:
@@ -403,6 +436,10 @@ class DiscordPresenter:
         are already 'registered' by the bot. Permissions are re-applied by the caller (force=True)."""
         guild, cfg = self._guild(state.guild_id), await self._cfg(state.guild_id)
         await self._fill_names(state)
+        try:
+            await self.reconcile_banner(state)
+        except discord.HTTPException:
+            log.exception("could not reconcile the pinned banner")
         for slot, p in state.players.items():
             if state.status == C.ENDED or p.state.get("inactive"):
                 continue
@@ -413,6 +450,95 @@ class DiscordPresenter:
                 continue
             if role and role not in member.roles:
                 await member.add_roles(role, reason="Town of Monke reconcile")
+
+    @staticmethod
+    async def _pins(channel) -> list:
+        res = channel.pins()
+        if hasattr(res, "__aiter__"):  # discord.py 2.6+ returns an async iterator
+            return [m async for m in res]
+        return list(await res)
+
+    async def reconcile_banner(self, state) -> None:
+        """FIX-6: unpin every old bot banner in Town Centre and keep the current one pinned."""
+        if state.status not in (C.RUNNING, C.PAUSED):
+            return
+        town = await self._channel(state.guild_id, "town")
+        mine = [m for m in await self._pins(town) if m.author.id == self.bot.user.id]
+        keep = await self.store.banner_message(state.game_id)
+        if mine and keep not in {m.id for m in mine}:
+            keep = max(m.id for m in mine)
+            await self.store.set_banner_message(state.game_id, keep)
+        for m in mine:
+            if m.id != keep:
+                try:
+                    await m.unpin()
+                except discord.HTTPException:
+                    pass
+        current = next((m for m in mine if m.id == keep), None)
+        if current is not None:
+            self._banners[state.guild_id] = current
+
+    # ---- recovery helpers (REL-4, REL-9) ----
+    async def structures_missing(self, state) -> list:
+        """Names of game channels or slot roles that no longer exist. Never creates anything (REL-4 step 3)."""
+        cfg = await self._cfg(state.guild_id)
+        guild = self._guild(state.guild_id)
+        out = []
+        for key, cid in (("town", cfg.town_id), ("mafia", cfg.mafia_id), ("jail", cfg.jail_id),
+                         ("graveyard", cfg.graveyard_id), ("commands", cfg.commands_channel_id)):
+            if self.bot.get_channel(cid) is None:
+                try:
+                    await self.bot.fetch_channel(cid)
+                except discord.NotFound:
+                    out.append(key)
+                except discord.HTTPException:
+                    raise  # Discord trouble is not 'missing'
+        for slot in state.players:
+            if slot - 1 >= len(cfg.slot_role_ids) or guild.get_role(cfg.slot_role_ids[slot - 1]) is None:
+                out.append(f"slot role #{slot}")
+        return out
+
+    async def members_missing(self, state) -> list:
+        guild = self._guild(state.guild_id)
+        gone = []
+        for slot, p in state.players.items():
+            if not p.alive or p.state.get("inactive"):
+                continue
+            if guild.get_member(p.user_id) is not None:
+                continue
+            try:
+                await guild.fetch_member(p.user_id)
+            except discord.NotFound:
+                gone.append(slot)
+        return gone
+
+    async def fetch_history_after(self, state, kind: str, after_id) -> list:
+        """Messages in a game channel after the highest logged one, as chat_log rows (REL-9)."""
+        channel = await self._channel(state.guild_id, kind)
+        after = discord.Object(id=after_id) if after_id else None
+        rows = []
+        async for msg in channel.history(limit=1000, after=after, oldest_first=True):
+            bot = msg.author.bot
+            rows.append({
+                "ts_ms": int(msg.created_at.timestamp() * 1000), "kind": "bot" if bot else "msg",
+                "message_id": msg.id, "author_user_id": None if bot else msg.author.id,
+                "author_name": "Bot" if bot else sanitize_name(msg.author.display_name),
+                "content": flatten_post(msg.content, msg.embeds) if bot else (msg.content or ""),
+                "attachments": [{"filename": a.filename, "size": a.size, "url": a.url} for a in msg.attachments]})
+        return rows
+
+    async def jail_gap(self, state, rows: list) -> None:
+        """REL-9: tell the Jail, and DM the Jailor a digest of what the prisoner said while the bot was offline."""
+        await self.send_logged("jail", self.composer.t(state, "rel.jail_gap"), session=state)
+        jailor = next((p for p in state.players.values() if p.role_id == "jailor" and p.alive), None)
+        if jailor is None:
+            return
+        digest = "\n".join(f"- {r['content'][:120]}" for r in rows[:10]) or "-"
+        await self._dm(jailor.user_id, content=self.composer.t(state, "rel.jailor_gap", count=len(rows),
+                                                                digest=digest))
+
+    async def post_key(self, state, channel: str, key: str, **vars) -> None:
+        await self.send_logged(channel, self.composer.t(state, key, **vars), session=state)
 
     async def cleanup(self, state) -> None:
         """Post-game teardown: remove slot roles and hide every game channel."""

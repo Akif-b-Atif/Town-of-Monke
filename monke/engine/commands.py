@@ -48,6 +48,13 @@ class Resume:
 
 
 @dataclass
+class ShiftDeadline:
+    """REL-6: move the running phase's deadline (time given back after downtime). Goes through the command log."""
+    new_end: float
+    reason: str = "downtime"
+
+
+@dataclass
 class Abort:
     reason: str = "aborted by an admin"
 

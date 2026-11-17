@@ -23,7 +23,7 @@ class FakePresenter:
     async def remove_slot_roles(self, state): self.roles_removed += 1
     async def send_role_dms(self, state, events): return list(self.fail_dm)
     async def apply_permissions(self, state, force=False): self.perms.append((state.phase, state.status))
-    async def render(self, state, events): self.rendered.extend(e.type for e in events)
+    async def render(self, state, events, outbox=None): self.rendered.extend(e.type for e in events)
     async def reconcile(self, state): pass
     async def cleanup(self, state): pass
     async def notify_admin(self, guild_id, key, **vars): self.admin.append(key_text(key, **vars))

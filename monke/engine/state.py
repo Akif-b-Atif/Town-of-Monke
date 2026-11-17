@@ -8,7 +8,7 @@ from typing import Optional
 from .. import constants as C
 from .settings import Settings
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 @dataclass
@@ -20,6 +20,13 @@ class Player:
     death: Optional[dict] = None
     state: dict = field(default_factory=dict)
     display_name: str = ""  # NAM-1: sanitised at game start, never re-read
+    # ---- schema v2 (CARD, PACE, ADM2) ----
+    will: str = ""  # CARD-3
+    death_notes: dict = field(default_factory=dict)  # CARD-4: ability id -> note
+    journal: list = field(default_factory=list)  # CARD-2: [{"when": "N2", "text_key": ..., "vars": {...}}]
+    inactive_days: int = 0  # PACE-7
+    last_active_at: float = 0.0
+    former: list = field(default_factory=list)  # ADM2-1: people who held this slot before
 
 
 @dataclass
@@ -61,6 +68,13 @@ class GameState:
     winning_faction: Optional[str] = None
     end_reason: Optional[str] = None
     event_log_seq: int = 0
+    # ---- schema v2 ----
+    phase_started_at: float = 0.0  # FIX-4: when the current phase began (the skip guard measures from here)
+    phase_length: float = 0.0  # FIX-4/REL-6: the length the current phase was given
+    skip_votes: list = field(default_factory=list)  # PACE-2: slots that pressed Skip ahead
+    night_confirmed: list = field(default_factory=list)  # PACE-3: slots that confirmed their night
+    active_today: list = field(default_factory=list)  # PACE-7: slots active since the last dusk
+    settings_resolved: dict = field(default_factory=dict)  # LOB-5: what the layers resolved to at start
 
     # ---- helpers ----
     def alive_slots(self) -> list:
@@ -111,9 +125,9 @@ class GameState:
     @classmethod
     def from_dict(cls, d: dict) -> "GameState":
         d = dict(d)
-        ver = d.pop("schema_version", SCHEMA_VERSION)
-        if ver != SCHEMA_VERSION:
-            raise ValueError(f"Unsupported snapshot schema_version {ver}")
+        from ..service.migrations import migrate
+        d = migrate(d)  # raises SnapshotTooNew for a snapshot written by newer code (REL-15)
+        d.pop("schema_version", None)
         d["settings"] = Settings(**d["settings"])
         d["players"] = {int(k): Player(**v) for k, v in d["players"].items()}
         d["votes"] = {int(k): int(v) for k, v in d["votes"].items()}

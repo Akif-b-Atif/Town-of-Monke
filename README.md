@@ -70,6 +70,34 @@ Commands" in some versions of the portal). Permissions integer: `2416045072` (`p
    **Everyone can read `#monke-commands`; only Monke Admin can write there.** The bot re-applies this at every start.
 3. Players must allow DMs from server members (the start aborts and lists anyone who can't be DMed).
 
+### Crashes, restarts and backups
+
+The game survives the bot being killed, the computer sleeping or restarting, and Discord having a bad hour. Roles and
+channels stay in place while the bot is offline (on purpose); when it returns it finds its way back.
+
+- **Time is frozen while the bot is offline** and handed back in full: each running phase gets what it had left at the last
+  heartbeat (at least 60 seconds). A paused game stays paused. The clock is also rechecked every 5 seconds, so a laptop that
+  sleeps for hours does not leave a phase hanging.
+- **Nothing is lost or posted twice.** Every message is recorded as it is sent; after a restart the missed ones are posted,
+  once, in order. If Discord is down the bot keeps retrying (2, 4, 8 ... 60 s) and tells the admin after 10 failures.
+- **Chat said while offline** is read back into the archive (marked "(recovered)"). Players who left are removed. If a game
+  channel or slot role was deleted, the game is paused and the admin is told; the bot never recreates things in a live game.
+- **Run it under supervision:** `python -m monke --supervise` restarts the bot after a crash (back-off 1 to 60 s; it gives up
+  after 5 crashes in 5 minutes and says why). Alternatives: systemd (`Restart=on-failure`), Docker (`restart: unless-stopped`),
+  pm2, or Windows Task Scheduler. The honest limit: if the computer itself is off, nothing runs. The game stays frozen in the
+  database and resumes, time given back, at the next start.
+- **One copy only.** A second copy refuses to start. After a hard crash use `--force-takeover` if it is wrongly blocked.
+- **The database** is `monke.db` in the project folder whatever folder you start from (the full path is printed at start). It
+  runs in WAL mode with full syncing, is integrity-checked at start, and is backed up with SQLite's backup API at every start
+  and before every migration (`backups/`, the newest 5 are kept). If the file is missing but the server is already set up the
+  bot refuses to run ("wrong folder or a lost database"); `--new-db` overrides that. To restore: stop the bot, copy a file
+  from `backups/` over `monke.db`.
+- **Logs** go to `logs/monke.log` (5 files of 5 MB) and the console, every line tagged with guild, game, phase and event
+  number. The file can contain a game's seed after a crash, so treat it as a spoiler. Set `MONKE_OWNER_ID` to get a DM
+  (at most one a minute) when something unexpected happens.
+- **Stopping the bot cleanly** (Ctrl+C, SIGTERM, closing the console) waits for commands in flight, saves, and posts a notice
+  in Town Centre. A crash skips that, and the next start behaves the same way.
+
 ### Debug mode
 
 `python -m monke --debug` (or `MONKE_DEBUG=1`) prints everything the game does to the console, as the all-seeing admin:

@@ -91,7 +91,8 @@ def _chat_text(ctx, row, originals) -> str:
             return f"{who_}: {row['content']} (edited)"
         text = orig["content"] if orig is not None else "(original text was not captured)"
         return f"[deleted] {who_}: {text}"
-    return f"{who_}: {row['content']}{suffix}"
+    recovered = " (recovered)" if row.get("backfilled") else ""  # REL-9: read back after a restart
+    return f"{who_}: {row['content']}{suffix}{recovered}"
 
 
 # ---------------------------------------------------------------------------------------- summary

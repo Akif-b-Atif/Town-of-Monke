@@ -33,6 +33,7 @@ class T:
     JAIL_STARTED = "JailStarted"
     JAIL_ENDED = "JailEnded"
     STATUS = "StatusChanged"
+    PHASE_EXTENDED = "PhaseExtended"
     DAWN = "DawnReport"  # one public report per dawn (CARD-5)
     NIGHT_TRACE = "NightTrace"  # ARC-5, audience admin: archive only
     ADMIN_ACTION = "AdminAction"  # ARC-6, audience admin: archive only

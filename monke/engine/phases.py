@@ -41,6 +41,8 @@ def _enter(s: GameState, phase: str, now: float, duration: float, events: list, 
     s.phase = phase
     s.phase_id += 1
     s.phase_ends_at = now + duration
+    s.phase_started_at, s.phase_length = now, duration  # FIX-4
+    s.skip_votes, s.night_confirmed = [], []  # PACE-2/3: these never outlive a phase
     ctx.setdefault("day", s.day_number)
     ctx.setdefault("night", s.night_number)
     events.append(E.ev(E.T.PHASE_CHANGED, phase=phase, phase_id=s.phase_id, ends_at=s.phase_ends_at,
@@ -309,6 +311,10 @@ def handle(state: GameState, cmd, now: float) -> Result:
         s.admin_pause_remaining = None
         events.append(E.ev(E.T.STATUS, status=C.RUNNING))
         _announce(events, "phase.resumed")
+    elif isinstance(cmd, K.ShiftDeadline):
+        if s.status == C.RUNNING and cmd.new_end != s.phase_ends_at:  # a PAUSED game never gets compensation
+            s.phase_ends_at = cmd.new_end
+            events.append(E.ev(E.T.PHASE_EXTENDED, phase_id=s.phase_id, ends_at=s.phase_ends_at, reason=cmd.reason))
     elif isinstance(cmd, K.Pause):
         if s.status == C.RUNNING:
             s.admin_pause_remaining = max(1.0, s.phase_ends_at - now)

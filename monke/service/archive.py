@@ -19,10 +19,16 @@ from .. import __version__ as BOT_VERSION
 log = logging.getLogger("monke.archive")
 
 
+class _Skip(Exception):
+    """Internal: jump over the pre-purge steps when resuming after the wipe."""
+
+
 class ArchiveService:
     def __init__(self, store, presenter, capture, clock=time.time, bot_version: str = BOT_VERSION,
                  retention_days: int = 7, sink=None):
         self.sink = sink or NullSink()
+        from .crash import CrashPoints
+        self.crash = CrashPoints()  # REL-18: shared with the GameService in tests
         self.store, self.presenter, self.capture, self.clock = store, presenter, capture, clock
         self.bot_version, self.retention_days = bot_version, retention_days
         self._locks: dict = {}
@@ -60,17 +66,24 @@ class ArchiveService:
                 return True
             await self.store.save_job(gid, job["state"] if job else "PENDING",
                                       attempts=(job["attempts"] if job else 0) + 1)
+            resumed_after_purge = bool(job) and job["state"] in ("PURGE_DONE", "SEPARATED")
+            if resumed_after_purge:  # killed after the channels were wiped: only the tail is left to do
+                summary = archive_summary(state, await self.store.load_events(gid))
             try:
+                if resumed_after_purge:
+                    raise _Skip()
                 # 1. lock: nothing may be written between the build and the wipe
                 self.sink.note("ARCHIVE", "locking channels", state)
                 await self.presenter.lock_for_archive(state)
                 self.capture.close(gid)
                 await self.capture.flush()
                 await self.store.save_job(gid, "LOCKED")
+                self.crash.hit("archive_locked")
                 # 2. build
                 self.sink.note("ARCHIVE", "building the zip", state)
                 summary, zips = await self._build(state)
                 await self.store.save_job(gid, "BUILT")
+                self.crash.hit("archive_built")
                 # 3. upload (skipped if a verified upload from an earlier attempt still exists)
                 self.sink.note("ARCHIVE", "uploading", state)
                 ids = job["zip_message_ids"] if job else []
@@ -79,6 +92,9 @@ class ArchiveService:
                 else:
                     ids, hashes = await self.presenter.upload_archive(state, summary, zips)
                     await self.store.save_job(gid, "UPLOADED", zip_message_ids=ids, sha256=hashes)
+                self.crash.hit("archive_uploaded")
+            except _Skip:
+                pass
             except Exception as exc:
                 log.exception("archive failed before a verified upload (game %s); nothing was deleted", gid)
                 await self.store.save_job(gid, "FAILED", error=repr(exc)[:500])
@@ -87,15 +103,20 @@ class ArchiveService:
             # 4. purge: only ever reached after a verified upload
             self.sink.note("ARCHIVE", "purging game channels", state)
             try:
-                await self.presenter.purge_game_channels(guild)
+                if not resumed_after_purge:
+                    await self.presenter.purge_game_channels(guild)
+                    await self.store.save_job(gid, "PURGE_DONE")
             except Exception as exc:
                 log.exception("purge failed (game %s); the archive is safe in Monke Commands", gid)
                 await self.store.save_job(gid, "FAILED", error=repr(exc)[:500])
                 await self._notify(guild, "archive.purge_failed")
                 return False
+            self.crash.hit("after_purge_before_cleanup")
             # 5. separators, 6. cleanup: best effort
             try:
-                await self.presenter.send_separators(state, summary)
+                if not (job and job["state"] == "SEPARATED"):
+                    await self.presenter.send_separators(state, summary)
+                    await self.store.save_job(gid, "SEPARATED")
             except Exception:
                 log.exception("separators failed")
             try:

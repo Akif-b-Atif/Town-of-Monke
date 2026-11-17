@@ -31,7 +31,7 @@ class FakePresenter:
     async def remove_slot_roles(self, state): pass
     async def send_role_dms(self, state, events): return []
     async def apply_permissions(self, state, force=False, archiving=False): pass
-    async def render(self, state, events): pass
+    async def render(self, state, events, outbox=None): pass
     async def reconcile(self, state): pass
     async def cleanup(self, state): self.calls.append("cleanup")
     async def notify_admin(self, guild_id, key, **vars): self.notices.append(key_text(key, **vars))
