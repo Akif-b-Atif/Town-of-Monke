@@ -3,6 +3,7 @@ prefix commands, buttons and /help are all generated from COMMANDS."""
 from __future__ import annotations
 
 import logging
+import re
 import time
 
 import discord
@@ -10,13 +11,14 @@ import discord
 from .. import constants as C
 from ..engine import commands as K
 from ..engine.rolelist import default_rolelist
-from ..engine.settings import resolve_settings
+from ..engine.settings import describe_settings, resolve_settings
+from ..roles.registry import has_role
 from ..errors import Rejected
 from ..roles import get_def
 from ..engine.rolecard import role_card
 from ..service.game_service import StartAborted
 from . import info
-from .parsing import parse_start
+from .parsing import _OPTION, parse_start
 from .registry import ArgSpec as A, CommandSpec
 from .textutil import rel, sanitize_name
 
@@ -85,15 +87,49 @@ async def h_resend(bot, ctx):
 
 
 # ======================================================================================= admin commands
+_YES = re.compile(r"(?:^|\s)-y(?=\s|$)")
+_MENTION_ANY = re.compile(r"<@!?(\d+)>")
+
+
+def _parse_start_text(bot, ctx, rest: str):
+    """-> (request or None, options, yes). None means 'no players were mentioned': open a lobby (Flow A)."""
+    text = rest or ""
+    yes = bool(_YES.search(text))
+    text = _YES.sub(" ", text)
+    ids = {int(x) for x in _MENTION_ANY.findall(text)}
+    if not ids:
+        return None, dict(_OPTION.findall(text)), yes
+    bot_ids = {uid for uid in ids if (m := ctx.guild.get_member(uid)) is not None and m.bot}
+    return parse_start("monke start " + text, bot_ids), None, yes
+
+
+async def c_start(bot, ctx, rest: str = ""):
+    """CMD-3 / LOB-8: quick start (players but no role list) asks for confirmation, unless -y."""
+    if (g := bot.service.get(ctx.guild_id)) is not None and g.status in (C.STARTING, C.RUNNING, C.PAUSED):
+        raise Rejected("error.game_running")
+    req, _opts, yes = _parse_start_text(bot, ctx, rest)
+    if req is None or req.tokens or yes:
+        return None
+    cfg = await bot.store.get_config(ctx.guild_id)
+    settings, _ = resolve_settings(cfg.server_settings, req.options, cfg.default_settings or None)
+    tokens = default_rolelist(len(req.user_ids))  # raises if the count is not 5 to 20
+    c = bot.presenter.composer
+    names = ", ".join(sanitize_name(m.display_name) if (m := ctx.guild.get_member(u)) else str(u) for u in req.user_ids)
+    roles = ", ".join(c.role_name(t) if has_role(t) else t for t in tokens)
+    details = c.t(None, "confirm.quickstart.details", players=names, rolelist=roles,
+                  settings=", ".join(f"{k}={v}" for k, v in describe_settings(settings)))
+    return ("confirm.what.quickstart", {}, details)
+
+
 async def h_start(bot, ctx, rest: str = ""):
     try:
         g = bot.service.get(ctx.guild_id)
         if g is not None and g.status in (C.STARTING, C.RUNNING, C.PAUSED):
             return await ctx.say(ctx.t("error.game_running"))
-        raw = "monke start " + (rest or "")
-        ids = {int(x) for x in __import__("re").findall(r"<@!?(\d+)>", raw)}
-        bot_ids = {uid for uid in ids if (m := ctx.guild.get_member(uid)) is not None and m.bot}
-        req = parse_start(raw, bot_ids)
+        req, opts, _yes = _parse_start_text(bot, ctx, rest)
+        if req is None:  # Flow A: no players mentioned -> a lobby in Monke Lobby (LOB-7)
+            lobby = await bot.lobbies.open(ctx.guild, ctx.user.id, options=opts)
+            return await ctx.say(ctx.t("lobby.where", channel=lobby.channel_id))
         cfg = await bot.store.get_config(ctx.guild_id)
         settings, resolved = resolve_settings(cfg.server_settings, req.options, cfg.default_settings or None)
         await ctx.say(ctx.t("admin.start.starting"))
@@ -106,6 +142,7 @@ async def h_start(bot, ctx, rest: str = ""):
                 except discord.HTTPException:
                     member = None
             names[uid] = sanitize_name(member.display_name if member else "")
+        # Flow B (no list) uses the default for N; Flow C (an explicit list) is unchanged (LOB-8, LOB-9)
         await bot.service.start_game(ctx.guild_id, req.user_ids, req.tokens or default_rolelist(len(req.user_ids)),
                                      settings, names=names, invoker_user_id=ctx.user.id, resolved=resolved)
     except Rejected as e:
@@ -116,6 +153,29 @@ async def h_start(bot, ctx, rest: str = ""):
     except Exception:
         log.exception("start failed")
         await ctx.say(ctx.t("error.generic"))
+
+
+async def h_lobby(bot, ctx, action: str = "", player=None):
+    """LOB-7: `lobby add @x`, `lobby remove @x`, `lobby cancel`."""
+    mgr = bot.lobbies
+    lobby = await mgr.store.open_for_guild(ctx.guild_id)
+    if lobby is None:
+        return await ctx.say(ctx.t("lobby.none_open"))
+    action = (action or "").lower()
+    if action in ("add", "remove"):
+        if player is None:
+            raise Rejected("error.missing_arg", causes="player")
+        uid = int(player)
+        member = ctx.guild.get_member(uid)
+        who = sanitize_name(member.display_name) if member else str(uid)
+        (lobby.join if action == "add" else lobby.leave)(uid)  # an admin adds without the DM test; Start re-checks DMs
+        await mgr.store.save(lobby, time.time())
+        mgr.schedule_refresh(lobby.lobby_id)
+        return await ctx.say(ctx.t("lobby.added" if action == "add" else "lobby.removed", player=who))
+    if action == "cancel":
+        await mgr._finish(lobby, "CANCELLED", "lobby.cancelled")
+        return await ctx.say(ctx.t("lobby.cancelled"))
+    raise Rejected("error.bad_option_nosuggest", causes=action or "lobby")
 
 
 async def h_status(bot, ctx):
@@ -247,7 +307,8 @@ async def h_teardown(bot, ctx, force: bool = False):
     if blocker:
         return await ctx.reply(ctx.t(blocker))
     cfg = await bot.store.get_config(ctx.guild_id)
-    for cid in (cfg.commands_channel_id, cfg.town_id, cfg.mafia_id, cfg.jail_id, cfg.graveyard_id, cfg.category_id):
+    for cid in (cfg.commands_channel_id, cfg.town_id, cfg.mafia_id, cfg.jail_id, cfg.graveyard_id, cfg.lobby_id,
+                cfg.category_id):
         ch = ctx.guild.get_channel(cid)
         if ch and ch.id != ctx.channel.id:
             await ch.delete(reason="Town of Monke teardown")
@@ -282,8 +343,9 @@ COMMANDS: list = [
     CommandSpec("resend", "player", (), h_resend, allowed_phases=(C.DAY_1, C.DAY, C.NOON, C.AFTERNOON, C.NIGHT),
                 alive_only=False),
     # ---- admins (slash and `monke ...`) ----
-    CommandSpec("start", "admin", (A("rest", "rest"),), h_start, prefix=True,
+    CommandSpec("start", "admin", (A("rest", "rest"),), h_start, prefix=True, confirm=c_start,
                 slash_args=(A("players", "text"), A("roles", "text"), A("options", "text")), join=_join_start),
+    CommandSpec("lobby", "admin", (A("action", "text", True), A("player", "member")), h_lobby, prefix=True),
     CommandSpec("status", "admin", (), h_status, prefix=True),
     CommandSpec("skip", "admin", (), h_skip, prefix=True, confirm=c_skip),
     CommandSpec("abort", "admin", (), h_abort, prefix=True, confirm=c_abort),

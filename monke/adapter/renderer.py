@@ -611,6 +611,10 @@ class DiscordPresenter:
         await self._dm(jailor.user_id, content=self.composer.t(state, "rel.jailor_gap", count=len(rows),
                                                                 digest=digest))
 
+    async def send_logged_plain(self, channel, **kw):
+        """A post in Monke Lobby (spoiler-safe, public, never pings: PRES-2, PRES-6)."""
+        return await channel.send(allowed_mentions=NO_MENTIONS, **kw)  # allow-send: Monke Lobby
+
     async def dm_key(self, state, slot: int, key: str, **vars) -> None:
         await self._dm(state.players[slot].user_id, content=self.composer.t(state, key, **vars))
 

@@ -87,7 +87,21 @@ async def ensure_structures(guild: discord.Guild, store) -> GuildConfig:
         if existing:
             await ch.edit(overwrites=ow)
         ids[key] = ch.id
+    # Monke Lobby (LOB-6): visible to everyone, read-only except for the bot. Idempotent, so it is added to old servers.
+    lobby_ow = {guild.default_role: discord.PermissionOverwrite(view_channel=True, read_message_history=True,
+                                                                send_messages=False, add_reactions=False),
+                me: discord.PermissionOverwrite(view_channel=True, send_messages=True, embed_links=True,
+                                                read_message_history=True)}
+    lobby = (old and old.lobby_id and guild.get_channel(old.lobby_id)) \
+        or discord.utils.get(cat.text_channels, name="monke-lobby")
+    if lobby is None:
+        lobby = await cat.create_text_channel("monke-lobby", overwrites=lobby_ow)
+    else:
+        await lobby.edit(overwrites=lobby_ow)
     cfg = GuildConfig(guild.id, cat.id, ids["commands"], admin.id, ids["town"], ids["mafia"], ids["jail"],
-                      ids["graveyard"], [r.id for r in slot_roles], asdict(Settings()))
+                      ids["graveyard"], [r.id for r in slot_roles],
+                      (old.default_settings if old and old.default_settings else asdict(Settings())),
+                      lobby_id=lobby.id, server_settings=(old.server_settings if old else {}),
+                      flavour_path=(old.flavour_path if old else None))
     await store.set_config(cfg)
     return cfg

@@ -21,6 +21,7 @@ from ..service.store import Store
 from . import views
 from .dispatch import Dispatcher
 from .handlers import COMMANDS
+from .lobby import DYNAMIC_ITEMS as LOBBY_ITEMS, LobbyManager
 from .chatlog import ChatLogger
 from .relay import JailRelay
 from .renderer import DiscordPresenter
@@ -60,6 +61,7 @@ class MonkeBot(commands.Bot):
         self.service = GameService(self.store, self.presenter, archive=self.archive, sink=self.sink)
         self.relay = JailRelay(self)
         self.chatlog = ChatLogger(self)
+        self.lobbies = LobbyManager(self)  # LOB-7
         self.service.on_error = self.report_error
         self.tree.on_error = self._on_tree_error
 
@@ -126,9 +128,10 @@ class MonkeBot(commands.Bot):
                                  f"{e.other['host']}). Stop it first, or start with --force-takeover.")
             raise
         self.capture.start()
+        self.lobbies.start_sweeper()
         self._prune_loop.start()
         self._spawn(self._heartbeat_forever(), "heartbeat")
-        self.add_dynamic_items(*views.DYNAMIC_ITEMS)  # prompts and verdict buttons survive restarts
+        self.add_dynamic_items(*views.DYNAMIC_ITEMS, *LOBBY_ITEMS)  # prompts and verdict buttons survive restarts
         self.dispatcher = Dispatcher(self, COMMANDS)  # CMD-1: every command comes from the registry
         for cmd in self.dispatcher.slash_commands():
             self.tree.add_command(cmd)

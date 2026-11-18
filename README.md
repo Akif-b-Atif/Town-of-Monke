@@ -112,6 +112,22 @@ log file. **The console shows every role. Do not share it or stream it during a 
   console is a terminal and `NO_COLOR` is unset.
 - Watch a simulated game without Discord: `python -m monke.sim.cli --games 1 --seed 7 --players 8 --debug`.
 
+### Starting a game: lobby, quick start, explicit list
+
+`monke setup` also creates **Monke Lobby**: visible to everyone, read-only except for the bot. It holds lobby embeds,
+game-over summaries and rematch buttons. Running `monke setup` again adds it to an existing server.
+
+- **Lobby (default):** `monke start` (or `/start`) with no players opens a lobby embed. Anyone can **Join** (the bot sends a
+  test DM and refuses, with instructions, if DMs are closed) or **Leave**. Any Monke Admin, checked live when they press,
+  can **Start** (enabled at 5 to 20 players with a valid role list; otherwise it says what is wrong), **Edit settings**,
+  **Edit role list** or **Cancel**. `monke lobby add @x`, `monke lobby remove @x` and `monke lobby cancel` manage it from
+  Monke Commands. Lobbies survive restarts and close after `lobby_timeout` (30 minutes) of inactivity.
+- **Quick start:** `monke start @p1 @p2 ... @pN` uses the default role list for N and shows a confirmation with the players,
+  role list and settings. Add `-y` to skip the confirmation.
+- **Explicit list:** the older form still works unchanged: mentions, then the role list on the following lines, then options
+  such as `preset=blitz night=3m`.
+- **Play again:** the game-over embed has a button that opens a lobby with the same players (still in the server) and settings.
+
 ### Commands
 
 Every command is defined once in a registry (`monke/adapter/handlers.py`), which generates the slash commands, the

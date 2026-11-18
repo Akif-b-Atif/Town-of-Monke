@@ -88,7 +88,8 @@ class Dispatcher:
 
     async def ask(self, spec: CommandSpec, ctx: Ctx, args: dict, question: tuple) -> None:
         """CMD-3: a Confirm / Cancel prompt any Monke Admin may press, expiring after 60 s."""
-        key, vars = question
+        key, vars = question[0], question[1]
+        extra = question[2] if len(question) > 2 else ""  # e.g. the players, role list and settings of a quick start
         c = self.bot.presenter.composer
 
         async def confirmed(interaction: discord.Interaction) -> None:
@@ -105,7 +106,8 @@ class Dispatcher:
         view = ConfirmView(self.bot, ctx.guild_id, confirmed,
                            {"confirm": c.t(None, "ui.button.confirm"), "cancel": c.t(None, "ui.button.cancel")},
                            c.t(None, "confirm.expired"), c.t(None, "confirm.cancelled"))
-        view.message = await ctx.reply(f"**{ctx.name()}**: {c.t(ctx.state, key, **vars)}", view=view)
+        view.message = await ctx.reply(f"**{ctx.name()}**: {c.t(ctx.state, key, **vars)}" + (f"\n{extra}" if extra else ""),
+                                       view=view)
 
     # ------------------------------------------------------------------ prefix: `monke <command> ...` (admin forms)
     async def on_message(self, message: discord.Message) -> bool:

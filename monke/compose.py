@@ -219,6 +219,31 @@ class Composer:
         return {"title": self.t(state, "ui.card.title", role_id=rid),
                 "description": self.t(state, f"role.{rid}.intro", wiki=wiki), "color": align, "fields": fields}
 
+    # ------------------------------------------------------------------ the lobby (LOB-7)
+    def lobby_embed(self, lobby, names: dict, lobby_timeout: float, status_key: str = "") -> dict:
+        from .engine.settings import Settings, describe_settings, resolve_settings
+        t = self.t
+        players = "\n".join(f"{i}. {names.get(u, u)}" for i, u in enumerate(lobby.players, 1)) or t(None, "lobby.embed.empty")
+        try:
+            tokens = lobby.rolelist()
+        except Exception:
+            tokens = []
+        roles = ", ".join(self.role_name(x) if has_role(x) else x for x in tokens) or "-"
+        if lobby.is_default_list() and tokens:
+            roles += " " + t(None, "lobby.embed.rolelist_default")
+        try:
+            settings = ", ".join(f"{k}={v}" for k, v in describe_settings(resolve_settings({}, lobby.options)[0]))
+        except Exception:
+            settings = ", ".join(f"{k}={v}" for k, v in lobby.options.items())
+        fields = [(t(None, "lobby.embed.players", count=lobby.count), players, False),
+                  (t(None, "lobby.embed.rolelist", count=len(tokens)), roles[:1024], False),
+                  (t(None, "lobby.embed.settings"), settings[:1024] or "-", False)]
+        desc = t(None, "lobby.embed.opened_by", name=names.get(lobby.opener_user_id, lobby.opener_user_id))
+        if status_key:
+            desc += "\n\n" + t(None, status_key)
+        return {"title": t(None, "lobby.embed.title"), "description": desc, "color": "gold", "fields": fields,
+                "footer": t(None, "lobby.embed.footer", time=lobby_timeout)}
+
     # ------------------------------------------------------------------ events -> messages
     def compose(self, state, e) -> list:
         fn = getattr(self, f"_e_{e.type}", None)
