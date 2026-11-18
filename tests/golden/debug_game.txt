@@ -44,10 +44,10 @@
 00:04:00 000007 Night 1 TRACE attack: #04 Sim3 (Godfather) -> #02 Sim5 (Sheriff): success cause=MAFIA level=1
 00:04:00 000007 Night 1 TRACE death: #02 Sim5 (Sheriff) -> -: died causes=['MAFIA']
 00:04:00 000007 Night 1 GAME Jail ends: prisoner #06 Sim2 (Veteran)
-00:04:00 000007 Night 1 DM #01 Sim4 (Mafioso) <- 'You were distracted and did nothing useful tonight.'
-00:04:00 000007 Night 1 DM #02 Sim5 (Sheriff) <- 'Your target was locked away tonight, and you accomplished nothing.'
-00:04:00 000007 Night 1 DM #04 Sim3 (Godfather) <- 'The Mafioso could not act. You must do the killing yourself.'
-00:04:00 000007 Night 1 DM #06 Sim2 (Veteran) <- 'The dungeon doors open at dawn. You are free.'
+00:04:00 000007 Night 1 DM #01 Sim4 (Mafioso) <- '**Night 1 recap**\nYou were distracted and did nothing useful tonight.'
+00:04:00 000007 Night 1 DM #02 Sim5 (Sheriff) <- '**Night 1 recap**\nYour target was locked away tonight, and you accomplished nothing.'
+00:04:00 000007 Night 1 DM #04 Sim3 (Godfather) <- '**Night 1 recap**\nThe Mafioso could not act. You must do the killing yourself.'
+00:04:00 000007 Night 1 DM #06 Sim2 (Veteran) <- '**Night 1 recap**\nThe dungeon doors open at dawn. You are free.'
 00:04:00 000007 Night 1 POST graveyard '<@1004> rises as a ghost. Rest easy, and talk with the others who fell.'
 00:04:00 000007 Night 1 POST graveyard 'Dead players may talk freely here and read the town square, but may not speak in it. Do not message living players or share anything about the game with them.'
 00:04:00 000007 Night 1 DEATH #02 Sim5 (Sheriff) died: MAFIA by #04 Sim3 (Godfather); role revealed
@@ -76,7 +76,7 @@
 00:15:00 000007 Night 2 TRACE visit: #03 Sim1 (Escort) -> #06 Sim2 (Veteran): ok ability=roleblock
 00:15:00 000007 Night 2 TRACE attack: #01 Sim4 (Mafioso) -> #03 Sim1 (Escort): success cause=MAFIA level=1
 00:15:00 000007 Night 2 TRACE death: #03 Sim1 (Escort) -> -: died causes=['MAFIA']
-00:15:00 000007 Night 2 DM #03 Sim1 (Escort) <- 'Your target could not be distracted.'
+00:15:00 000007 Night 2 DM #03 Sim1 (Escort) <- '**Night 2 recap**\nYour target could not be distracted.'
 00:15:00 000007 Night 2 POST graveyard 'Another soul joins the graveyard. Welcome, <@1000>.'
 00:15:00 000007 Night 2 DEATH #03 Sim1 (Escort) died: MAFIA by #01 Sim4 (Mafioso); role revealed
 00:15:00 000007 Night 2 POST town '**Day 3.** The market stalls open, but every eye darts nervously.\n\nSim1 (#3) was gunned down in the night by the Mafia.\nSim1 (#3) was the **Escort**, a charmer who kept many an evildoer busy.\n\nOnly 4 are left standing.'
@@ -158,7 +158,7 @@
 00:24:40 000007 Night 3 TRACE attack: #01 Sim4 (Mafioso) -> #05 Sim6 (Jailor): success cause=MAFIA level=1
 00:24:40 000007 Night 3 TRACE death: #05 Sim6 (Jailor) -> -: died causes=['MAFIA']
 00:24:40 000007 Night 3 GAME Jail ends: prisoner #04 Sim3 (Godfather)
-00:24:40 000007 Night 3 DM #04 Sim3 (Godfather) <- 'You are released with the morning light.'
+00:24:40 000007 Night 3 DM #04 Sim3 (Godfather) <- '**Night 3 recap**\nYou are released with the morning light.'
 00:24:40 000007 Night 3 POST graveyard 'Another soul joins the graveyard. Welcome, <@1005>.'
 00:24:40 000007 Night 3 DEATH #05 Sim6 (Jailor) died: MAFIA by #01 Sim4 (Mafioso); role revealed
 00:24:40 000007 Night 3 POST town '**Day 4.** Mist hangs over the rooftops of Monke Town as the townsfolk stir.\n\nSim6 (#5) was found dead, a calling card of the Mafia beside them.\nSim6 (#5) was the **Jailor**, a merciless keeper of the town dungeon.\n\n2 townspeople remain.'

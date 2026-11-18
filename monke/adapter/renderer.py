@@ -157,7 +157,8 @@ class DiscordPresenter:
                 continue
             slot = e.payload["slot"]
             emb = self._embed(self.composer.card(state, e.payload))
-            if not await self._dm(state.players[slot].user_id, embed=emb):
+            view = views.card_view(state.game_id, bool(e.payload.get("kills")), self.composer.card_labels(state))
+            if not await self._dm(state.players[slot].user_id, embed=emb, view=view):
                 failed.append(state.players[slot].user_id)
         return failed
 
@@ -278,6 +279,8 @@ class DiscordPresenter:
             return None
         if spec[0] == "verdict":
             return views.verdict_view(spec[1], spec[2], spec[3] if len(spec) > 3 else None)
+        if spec[0] == "card":
+            return views.card_view(spec[1], spec[2], spec[3])
         if spec[0] == "panel":
             return views.panel_view(spec[1], spec[2], spec[3], spec[4], spec[5])
         return views.prompt_view(spec[1], spec[2], spec[3], spec[4])

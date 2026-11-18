@@ -181,7 +181,77 @@ def panel_view(game_id: str, phase_id, names: dict, placeholder: str, unvote_lab
     return v
 
 
-DYNAMIC_ITEMS = (ActionSelect, ToggleButton, VerdictButton, PanelSelect, PanelUnvote)
+# ---------------------------------------------------------------------------------------- will and death note (CARD-1/3/4)
+class EditorModal(discord.ui.Modal):
+    def __init__(self, interaction, state, slot: int, kind: str):
+        comp = interaction.client.presenter.composer
+        key = "will" if kind == "will" else "deathnote"
+        super().__init__(title=comp.t(state, f"{key}.modal.title")[:45])
+        self.kind, self.slot, self.guild_id = kind, slot, state.guild_id
+        p = state.players[slot]
+        from ..engine.cards import note_of
+        limit = state.settings.will_max if kind == "will" else state.settings.note_max
+        self.box = discord.ui.TextInput(label=comp.t(state, f"{key}.modal.label")[:45], style=discord.TextStyle.paragraph,
+                                        required=False, default=(p.will if kind == "will" else note_of(p)) or None,
+                                        max_length=min(limit, 4000))
+        self.add_item(self.box)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        service, comp = interaction.client.service, interaction.client.presenter.composer
+        cmd = (K.SetWill if self.kind == "will" else K.SetDeathNote)(self.slot, self.box.value)
+        try:
+            await service.submit(self.guild_id, cmd)
+        except Rejected as e:
+            return await interaction.response.send_message(comp.error(e, service.get(self.guild_id)), ephemeral=True)
+        await interaction.response.send_message(
+            comp.t(service.get(self.guild_id), "will.saved" if self.kind == "will" else "deathnote.saved"), ephemeral=True)
+
+
+async def open_editor(interaction: discord.Interaction, state, slot: int, kind: str) -> None:
+    """Open the will / death note window for a living player (also used by /will and /deathnote)."""
+    comp = interaction.client.presenter.composer
+    p = state.players[slot]
+    from ..engine.cards import NOTE_ABILITY
+    if not p.alive:
+        return await interaction.response.send_message(comp.t(state, "error.dead"), ephemeral=True)
+    if kind == "will" and not state.settings.allow_wills:
+        return await interaction.response.send_message(comp.t(state, "will.disabled"), ephemeral=True)
+    if kind == "note" and p.role_id not in NOTE_ABILITY:
+        return await interaction.response.send_message(comp.t(state, "deathnote.not_allowed"), ephemeral=True)
+    if kind == "note" and not state.settings.allow_deathnotes:
+        return await interaction.response.send_message(comp.t(state, "deathnote.disabled"), ephemeral=True)
+    await interaction.response.send_modal(EditorModal(interaction, state, slot, kind))
+
+
+class EditorButton(discord.ui.DynamicItem[discord.ui.Button],
+                   template=rf"monke:(?P<kind>will|note):(?P<game>{_GAME})"):
+    def __init__(self, kind: str, game: str, label: str = ""):
+        self.kind, self.game = kind, game
+        super().__init__(discord.ui.Button(label=label or kind.title(), custom_id=f"monke:{kind}:{game}",
+                                           style=discord.ButtonStyle.secondary))
+
+    @classmethod
+    async def from_custom_id(cls, interaction, item, match, /):
+        return cls(match["kind"], match["game"])
+
+    async def callback(self, interaction: discord.Interaction):
+        state = interaction.client.service.find_by_game_id(self.game)
+        slot = state.slot_of_user(interaction.user.id) if state is not None else None
+        if state is None or slot is None:
+            return await interaction.response.send_message(_t(interaction, "error.stale_prompt", state), ephemeral=True)
+        await open_editor(interaction, state, slot, self.kind)
+
+
+def card_view(game_id: str, kills: bool, labels: dict) -> discord.ui.View:
+    """CARD-1: Edit Will, and for roles whose ability kills, Edit Death Note."""
+    v = discord.ui.View(timeout=None)
+    v.add_item(EditorButton("will", game_id, labels.get("will", "")))
+    if kills:
+        v.add_item(EditorButton("note", game_id, labels.get("note", "")))
+    return v
+
+
+DYNAMIC_ITEMS = (ActionSelect, ToggleButton, VerdictButton, PanelSelect, PanelUnvote, EditorButton)
 
 
 def verdict_view(game_id: str, token: str, labels: dict = None) -> discord.ui.View:

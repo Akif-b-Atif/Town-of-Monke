@@ -69,8 +69,29 @@ async def h_timer(bot, ctx):
 
 async def h_role(bot, ctx):
     card = role_card(ctx.state, ctx.state.players[ctx.slot])
-    emb = bot.presenter._embed(bot.presenter.composer.card(ctx.state, card))
-    await ctx.reply(embed=emb, ephemeral=True)
+    c = bot.presenter.composer
+    from . import views
+    view = views.card_view(ctx.state.game_id, bool(card.get("kills")), c.card_labels(ctx.state)) \
+        if ctx.state.players[ctx.slot].alive else None
+    await ctx.reply(embed=bot.presenter._embed(c.card(ctx.state, card)), view=view, ephemeral=True)
+
+
+async def h_journal(bot, ctx):
+    await ctx.reply(info.journal_text(bot.presenter.composer, ctx.state, ctx.slot), ephemeral=True)
+
+
+async def h_will(bot, ctx):
+    if ctx.interaction is None:
+        raise Rejected("error.cant_use")
+    from . import views
+    await views.open_editor(ctx.interaction, ctx.state, ctx.slot, "will")
+
+
+async def h_deathnote(bot, ctx):
+    if ctx.interaction is None:
+        raise Rejected("error.cant_use")
+    from . import views
+    await views.open_editor(ctx.interaction, ctx.state, ctx.slot, "note")
 
 
 async def h_help(bot, ctx):
@@ -339,6 +360,9 @@ COMMANDS: list = [
     CommandSpec("rolelist", "player", (A("count", "int"),), h_rolelist),
     CommandSpec("timer", "player", (), h_timer),
     CommandSpec("role", "player", (), h_role),
+    CommandSpec("journal", "player", (), h_journal),
+    CommandSpec("will", "player", (), h_will, alive_only=True),
+    CommandSpec("deathnote", "player", (), h_deathnote, alive_only=True),
     CommandSpec("help", "player", (), h_help),
     CommandSpec("resend", "player", (), h_resend, allowed_phases=(C.DAY_1, C.DAY, C.NOON, C.AFTERNOON, C.NIGHT),
                 alive_only=False),

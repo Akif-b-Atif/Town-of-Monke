@@ -52,16 +52,22 @@ def msgs(events, slot, state=None):
 
 
 def keys(events, slot):
-    """The text keys of the private messages a player received."""
-    return [e.payload["text_key"] for e in events if e.type == "PrivateMessage" and e.audience == f"slot:{slot}"]
+    """The text keys of the private results a player received (a night recap is flattened into its items)."""
+    return [k for k, _ in private(events, slot)]
+
+
+def private(events, slot):
+    """(text key, vars) of each private result a player received, in order. A recap DM is flattened."""
+    out = []
+    for e in events:
+        if e.type == "PrivateMessage" and e.audience == f"slot:{slot}":
+            if e.payload.get("items"):
+                out += [(i["text_key"], i.get("vars", {})) for i in e.payload["items"]]
+            else:
+                out.append((e.payload["text_key"], e.payload.get("vars", {})))
+    return out
 
 
 def dead(s):
     return sorted(sl for sl, p in s.players.items() if not p.alive and p.role_id != "jester" or
                   (p.role_id == "jester" and not p.alive and p.death))
-
-
-def private(events, slot):
-    """(text key, vars) of each private message a player received, in order."""
-    return [(e.payload["text_key"], e.payload.get("vars", {})) for e in events
-            if e.type == "PrivateMessage" and e.audience == f"slot:{slot}"]

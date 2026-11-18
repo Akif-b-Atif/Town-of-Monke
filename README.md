@@ -128,6 +128,25 @@ game-over summaries and rematch buttons. Running `monke setup` again adds it to 
   such as `preset=blitz night=3m`.
 - **Play again:** the game-over embed has a button that opens a lobby with the same players (still in the server) and settings.
 
+### Role cards, wills, death notes and your journal
+
+At the start of the game, and on `/role`, you get a role card: an alignment colour (with a text label), your ability in plain
+language with a link to the wiki, Attack and Defense, your abilities with uses left, your goal and tips. Mafia cards list your
+teammates. The card has **Edit will** and, for roles whose ability kills, **Edit death note** buttons (also `/will` and
+`/deathnote`).
+
+- **Will:** up to 600 characters, editable any time while you are alive. It is shown in the death announcement for every
+  cause (lynching and execution included) unless it is blank.
+- **Death note:** up to 300 characters for the Godfather, Mafioso, Serial Killer, Veteran, Jailor and Jester. It is attached
+  to a victim only when your attack succeeds; for the Mafia it is the note of the player who performed the kill. It stays until
+  you edit it.
+- Text you write is cleaned when saved: mentions neutralised, invite links removed, at most 10 line breaks; markdown is allowed.
+  `allow_wills`, `allow_deathnotes`, `will_max` and `note_max` are settings.
+- **Journal:** `/journal` shows everything private you have learned. At dawn all the private results of the night (results of
+  investigations, heal and block notices, execution and haunt notices) arrive as one **Night N recap** DM.
+- **Dawn report:** one message in Town Centre: the dawn line, each death (cause, role reveal, will, note) in slot order, who
+  remains, and a stalemate warning when a draw is one quiet cycle away.
+
 ### Commands
 
 Every command is defined once in a registry (`monke/adapter/handlers.py`), which generates the slash commands, the

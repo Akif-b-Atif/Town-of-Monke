@@ -11,7 +11,7 @@ from ..errors import Rejected
 from ..roles import get_def, get_handler
 from ..roles.registry import has_role
 from . import commands as K
-from . import deaths, night, voting, wincheck
+from . import cards, deaths, night, voting, wincheck
 from . import events as E
 from .rolelist import assign, generate_roles, validate_rolelist
 from .rolecard import role_card
@@ -156,8 +156,8 @@ def _start_night(s: GameState, now: float, events: list, reason: str) -> None:
     _enter(s, C.NIGHT, now, s.settings.night_s, events, reason)
     if pr is not None:
         events.append(E.ev(E.T.JAIL_STARTED, E.ADMIN, prisoner=pr, jailor=jailor.slot))
-        events.append(E.ev(E.T.PRIVATE, E.to_slot(pr), text_key="jail.prisoner.notified", vars={}))
-        events.append(E.ev(E.T.PRIVATE, E.to_slot(jailor.slot), text_key="jail.jailor.prompt", vars={"target": pr}))
+        cards.private(s, events, pr, "jail.prisoner.notified")
+        cards.private(s, events, jailor.slot, "jail.jailor.prompt", target=pr)
     _emit_prompts(s, events)
 
 
@@ -197,7 +197,7 @@ def _resolve_verdict(s: GameState, now: float, events: list) -> None:
             if d not in s.winners:
                 s.winners.append(d)
             _announce(events, "jester.win_public", player=d)
-            events.append(E.ev(E.T.PRIVATE, E.to_slot(d), text_key="jester.haunt_prompt", vars={}))
+            cards.private(s, events, d, "jester.haunt_prompt")
         outcome = wincheck.check(s)
         if outcome:
             _end_game(s, outcome, events)
@@ -334,6 +334,10 @@ def handle(state: GameState, cmd, now: float) -> Result:
         if p.alive and not p.state.get("inactive"):
             p.state["inactive"] = True
             _announce(events, "admin.player_left", E.ADMIN, player=cmd.slot)
+    elif isinstance(cmd, (K.SetWill, K.SetDeathNote)):
+        if s.status == C.STARTING:
+            raise Rejected("error.not_started")
+        (cards.set_will if isinstance(cmd, K.SetWill) else cards.set_death_note)(s, cmd.slot, cmd.text)
     elif s.status == C.PAUSED:
         raise Rejected("error.paused")
     elif s.status == C.STARTING:

@@ -267,6 +267,8 @@ class Composer:
     def _e_Announcement(self, state, e):
         p = e.payload
         text = self.t(state, p["text_key"], **p.get("vars", {})) if "text_key" in p else p.get("text", "")
+        if p.get("items"):  # a night recap: a title, then one line per result in resolution order (QOL-9)
+            text = "\n".join([text] + [self.t(state, i["text_key"], **i.get("vars", {})) for i in p["items"]])
         aud = e.audience
         if aud == E.PUBLIC:
             return [Msg("town", text)]
@@ -377,8 +379,12 @@ class Composer:
         when = self.t(state, "ui.when.night" if kind == "N" else "ui.when.day", night=n, day=n)
         return self.t(state, "ui.fate.died", causes=causes, when=when)
 
+    def card_labels(self, state) -> dict:
+        return {"will": self.t(state, "ui.button.edit_will"), "note": self.t(state, "ui.button.edit_note")}
+
     def _e_RoleAssigned(self, state, e):
-        return [Msg(e.audience, embed=self.card(state, e.payload), meta={"card": True})]
+        view = ("card", state.game_id, bool(e.payload.get("kills")), self.card_labels(state))
+        return [Msg(e.audience, embed=self.card(state, e.payload), view=view, meta={"card": True})]
 
     def _e_PromptRequested(self, state, e):
         p = e.payload

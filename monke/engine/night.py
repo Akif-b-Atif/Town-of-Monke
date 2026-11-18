@@ -7,7 +7,7 @@ from typing import Optional
 
 from .. import constants as C
 from ..roles import get_def, get_handler
-from . import deaths
+from . import cards, deaths
 from . import events as E
 from .state import Action
 
@@ -55,6 +55,8 @@ def resolve(s, events: list) -> NightResult:
 
     def T(step: str, actor=None, target=None, outcome: str = "", **detail) -> None:
         trace.append({"step": step, "actor": actor, "target": target, "outcome": outcome, "detail": detail})
+
+    kill_notes: dict = {}  # victim -> death notes of the killers whose attack succeeded (CARD-4)
 
     def atk(attacker: int, target: int, cause: str) -> Attack:
         return Attack(attacker, target, get_def(players[attacker].role_id).attack_level, cause)
@@ -222,6 +224,9 @@ def resolve(s, events: list) -> NightResult:
             causes = died.setdefault(a.target, [])
             if a.cause not in causes:
                 causes.append(a.cause)
+            text = cards.note_of(players[a.attacker]) if a.attacker in players else ""
+            if text:
+                kill_notes.setdefault(a.target, []).append(text)
 
     # N9 Investigate
     for v in visits:
@@ -253,7 +258,7 @@ def resolve(s, events: list) -> NightResult:
     result = NightResult()
     for slot in sorted(died):
         causes = died[slot]
-        result.death_events.append(deaths.kill(s, slot, causes, where="dawn"))
+        result.death_events.append(deaths.kill(s, slot, causes, where="dawn", note=" ".join(kill_notes.get(slot, []))))
         result.deaths.append((slot, causes))
         T("death", slot, None, "died", causes=list(causes))
         if C.EXECUTED in causes and get_def(players[slot].role_id).alignment == C.TOWN and exec_by is not None:
@@ -275,7 +280,9 @@ def resolve(s, events: list) -> NightResult:
     s.pending_jail_slot = None
     s.prisoner_slot = None
 
-    for slot in sorted(notes):
+    for slot in sorted(notes):  # QOL-9: everything one player learns at dawn is ONE 'Night n recap' DM
         for key, vars in notes[slot]:
-            events.append(E.ev(E.T.PRIVATE, E.to_slot(slot), text_key=key, vars=vars))
+            players[slot].journal.append({"when": f"N{s.night_number}", "text_key": key, "vars": vars})  # CARD-2
+        events.append(E.ev(E.T.PRIVATE, E.to_slot(slot), text_key="ui.recap.title", vars={"night": s.night_number},
+                           items=[{"text_key": k, "vars": v} for k, v in notes[slot]]))
     return result

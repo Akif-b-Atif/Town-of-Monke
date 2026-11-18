@@ -48,6 +48,18 @@ class Resume:
 
 
 @dataclass
+class SetWill:
+    slot: int
+    text: str
+
+
+@dataclass
+class SetDeathNote:
+    slot: int
+    text: str
+
+
+@dataclass
 class ShiftDeadline:
     """REL-6: move the running phase's deadline (time given back after downtime). Goes through the command log."""
     new_end: float

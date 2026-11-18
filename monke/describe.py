@@ -52,7 +52,9 @@ class Describer:
         """The words of an Announcement or PrivateMessage payload (a text key, or old-style stored text)."""
         if "text_key" in p:
             try:
-                return self.composer.t(self.state, p["text_key"], **(p.get("vars") or {}))
+                head = self.composer.t(self.state, p["text_key"], **(p.get("vars") or {}))
+                items = [self.composer.t(self.state, i["text_key"], **(i.get("vars") or {})) for i in p.get("items", [])]
+                return "\n".join([head] + items)
             except Exception:
                 return f"[{p['text_key']}]"
         return p.get("text", "")

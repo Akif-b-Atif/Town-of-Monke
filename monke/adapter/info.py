@@ -127,3 +127,20 @@ def help_text(c, state, specs: list, slot: Optional[int], is_admin: bool, is_man
     if len(lines) == 1:
         return c.t(state, "help.nothing")
     return "\n".join(lines)
+
+
+def journal_text(c, state, slot: int, limit: int = 1900) -> str:
+    """CARD-2: everything private the player has learned, oldest first. If it is too long for one message the
+    oldest entries are dropped."""
+    p = state.players[slot]
+    if not p.journal:
+        return c.t(state, "ui.journal.empty")
+    lines = []
+    for entry in p.journal:
+        kind, n = entry["when"][0], int(entry["when"][1:] or 0)
+        when = c.t(state, "ui.when.night" if kind == "N" else "ui.when.day", night=n, day=n)
+        lines.append(c.t(state, "ui.journal.entry", when=when, text=c.t(state, entry["text_key"], **entry.get("vars", {}))))
+    head = c.t(state, "ui.journal.header")
+    while lines and len(head) + 1 + len("\n".join(lines)) > limit:
+        lines.pop(0)
+    return head + "\n" + "\n".join(lines)

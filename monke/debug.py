@@ -133,6 +133,9 @@ class ConsoleSink(NullSink):
             if getattr(cmd, "force", False):
                 self.emit("ADMIN", f"skip: phase advanced early by {getattr(cmd, 'by', '') or 'an admin'}",
                           after, ph_before, now)
+        elif kind in ("SetWill", "SetDeathNote"):  # DBG-2: wills and death notes are printed
+            self.emit("ACTION", f"{d.who(getattr(cmd, 'slot', None))} set their {'will' if kind == 'SetWill' else 'death note'}: "
+                                f"{getattr(cmd, 'text', '')!r}", after, ph_before, now)
         elif kind in _ADMIN_COMMANDS:
             self.emit("ADMIN", f"{kind} {row['payload']}", after, ph_before, now)
         trace_steps = [s for e in events if e.type == "NightTrace" for s in e.payload.get("steps", [])]
