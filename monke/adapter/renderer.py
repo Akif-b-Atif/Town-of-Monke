@@ -41,6 +41,7 @@ class DiscordPresenter:
         self._banners: dict = {}  # guild_id -> last pinned phase banner message
         self.sink = NullSink()  # DBG-6: set by the bot
         self._writers: dict = {}  # guild_id -> GuildWriter (REL-17)
+        self._banner_info: dict = {}  # guild_id -> {message, payload, variants}: what is needed to edit the banner
         self._panels: dict = {}  # game_id -> (phase_id, message): the live vote panel (CMD-5)
         self._panel_tasks: dict = {}
         self._prompts: dict = {}  # game_id -> [{token, kind, message, label}] for QOL-8
@@ -279,11 +280,13 @@ class DiscordPresenter:
             return None
         if spec[0] == "verdict":
             return views.verdict_view(spec[1], spec[2], spec[3] if len(spec) > 3 else None)
+        if spec[0] == "skip":
+            return views.skip_view(spec[1], spec[2], spec[3])
         if spec[0] == "card":
             return views.card_view(spec[1], spec[2], spec[3])
         if spec[0] == "panel":
             return views.panel_view(spec[1], spec[2], spec[3], spec[4], spec[5])
-        return views.prompt_view(spec[1], spec[2], spec[3], spec[4])
+        return views.prompt_view(spec[1], spec[2], spec[3], spec[4], spec[5] if len(spec) > 5 else None)
 
     async def render(self, state, events: list, outbox=None) -> None:
         """Deliver events. Retryable Discord failures propagate (the service keeps the event unrendered and
@@ -310,6 +313,19 @@ class DiscordPresenter:
                     self._schedule_panel_refresh(state)
             except Exception:
                 log.exception("post-phase housekeeping failed")
+
+    async def _edit_banner(self, state) -> None:
+        """PACE-1: re-render the current banner (new deadline, pause, skip votes) and edit it in place at priority P3,
+        so its countdown stays right."""
+        info = self._banner_info.get(state.guild_id)
+        if info is None or not info.get("payload") or info["payload"]["phase_id"] != state.phase_id:
+            return
+        payload = {**info["payload"], "ends_at": state.phase_ends_at}
+        text, _ = self.composer.banner(state, payload, info["variants"])
+        view = self._view(self.composer.banner_view(state, state.phase_id, state.phase))
+        kw = {"content": text, "view": view}
+        await self.writer(state.guild_id).run(GuildWriter.P3, lambda: info["message"].edit(**kw),
+                                              key=("banner", state.guild_id))
 
     # ---- vote panel (CMD-5) and prompt hygiene (QOL-8) ----
     PANEL_DEBOUNCE = 1.0
@@ -370,6 +386,9 @@ class DiscordPresenter:
             if state.status in (C.RUNNING, C.PAUSED):  # XC-6: admin-audience events feed the archive only while live
                 log.info("admin-only event not shown (game %s)", state.game_id)
                 return []
+        if m.effect == "banner_edit":
+            await self._edit_banner(state)
+            return []
         if m.effect == "purge_jail":
             try:
                 await (await self._channel(state.guild_id, "jail")).purge(limit=None)
@@ -383,6 +402,8 @@ class DiscordPresenter:
                 m.target, m.content or None, embeds, view, session=state, mentions=m.mentions))
             if m.effect == "banner" and sent:
                 await self._pin_banner(state, sent[0])
+                self._banner_info[state.guild_id] = {"message": sent[0], "payload": m.meta.get("payload"),
+                                                     "variants": m.meta.get("variants", {})}
             elif m.effect == "panel" and sent:
                 self._panels[state.game_id] = (m.meta["phase_id"], sent[0])
                 try:  # remembered with the outbox so a restart can find the panel again

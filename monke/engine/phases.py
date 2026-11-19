@@ -144,7 +144,83 @@ def _enter_afternoon(s: GameState, now: float, events: list, reason: str, **ctx)
     _enter(s, C.AFTERNOON, now, s.settings.afternoon_s, events, reason, **ctx)
 
 
+# ---------------------------------------------------------------------------------------- pacing (PACE-2, 3, 7)
+SKIPPABLE = (C.DAY_1, C.DAY, C.AFTERNOON)
+
+
+def skip_needed(s: GameState) -> int:
+    """A strict majority of the living: floor(alive / 2) + 1."""
+    return len(s.alive_slots()) // 2 + 1
+
+
+def _note_activity(s: GameState, slot, now: float) -> None:
+    p = s.players.get(slot)
+    if p is not None and p.alive and slot not in s.active_today:
+        s.active_today.append(slot)  # at most once per phase per player in effect: a set, cleared at dusk
+        p.last_active_at = now
+
+
+def _toggle_skip(s: GameState, slot: int, now: float, events: list) -> None:
+    """PACE-2: when a strict majority of the living have pressed Skip ahead, Day moves to Noon and Day 1 or
+    Afternoon move to Night (reason skip_early). Noon and trials can never be skipped this way."""
+    p = s.players.get(slot)
+    if p is None:
+        raise Rejected("error.not_in_game")
+    if not p.alive:
+        raise Rejected("error.dead")
+    if not s.settings.early_day or s.phase not in SKIPPABLE:
+        raise Rejected("error.cant_use")
+    if slot in s.skip_votes:
+        s.skip_votes.remove(slot)
+    else:
+        s.skip_votes.append(slot)
+    need = skip_needed(s)
+    events.append(E.ev(E.T.SKIP_VOTES, phase_id=s.phase_id, count=len(s.skip_votes), needed=need, voter=slot))
+    if len(s.skip_votes) >= need:
+        if s.phase == C.DAY:
+            _enter_noon(s, now, events, reason="skip_early")
+        else:
+            _start_night(s, now, events, "skip_early")
+
+
+def _confirm_night(s: GameState, slot: int, now: float, events: list) -> None:
+    """PACE-3: when every player holding a prompt has confirmed, the night resolves at once. An unset prompt counts
+    as unconfirmed, and nothing here leaks who holds an ability (the button is on every prompt)."""
+    from . import pacing
+    if s.phase != C.NIGHT or not s.settings.early_night or slot not in pacing.prompt_holders(s):
+        raise Rejected("error.cant_use")
+    if slot not in s.night_confirmed:
+        s.night_confirmed.append(slot)
+    if all(h in s.night_confirmed for h in pacing.prompt_holders(s)):
+        _dawn(s, now, events)
+
+
+def _afk_update(s: GameState, events: list) -> None:
+    """PACE-7, evaluated at dusk (the start of Night). Day 1 is not counted. A living player with no activity since the
+    last dusk has an inactive day; any activity resets the counter. At 2 consecutive inactive days the player is
+    warned and the admin is told; at afk_cycles the player is removed at the next dawn (cause ABANDONED)."""
+    cycles = s.settings.afk_cycles
+    if cycles > 0 and s.day_number > 1:
+        for slot in sorted(s.players):
+            p = s.players[slot]
+            if not p.alive or p.state.get("inactive"):
+                continue
+            if slot in s.active_today:
+                p.inactive_days = 0
+                continue
+            p.inactive_days += 1
+            if p.inactive_days == min(2, cycles):
+                cards.private(s, events, slot, "afk.warning", count=p.inactive_days)
+                events.append(E.ev(E.T.ANNOUNCEMENT, E.NOTICE, text_key="afk.admin_warning",
+                                   vars={"player": slot, "count": p.inactive_days}))
+            if p.inactive_days >= cycles:
+                p.state["inactive"] = True
+                cards.private(s, events, slot, "afk.removed")
+    s.active_today = []
+
+
 def _start_night(s: GameState, now: float, events: list, reason: str) -> None:
+    _afk_update(s, events)
     s.night_number += 1
     s.votes, s.trial, s.paused_remaining = {}, None, None
     jailor = next((p for p in s.players.values() if p.role_id == "jailor"), None)
@@ -338,6 +414,7 @@ def handle(state: GameState, cmd, now: float) -> Result:
         if s.status == C.STARTING:
             raise Rejected("error.not_started")
         (cards.set_will if isinstance(cmd, K.SetWill) else cards.set_death_note)(s, cmd.slot, cmd.text)
+        _note_activity(s, cmd.slot, now)
     elif s.status == C.PAUSED:
         raise Rejected("error.paused")
     elif s.status == C.STARTING:
@@ -350,7 +427,16 @@ def handle(state: GameState, cmd, now: float) -> Result:
         voting.cast_verdict(s, cmd.voter_slot, cmd.verdict, events)
     elif isinstance(cmd, K.SubmitAction):
         _submit_action(s, cmd, now, events)
+    elif isinstance(cmd, K.ToggleSkipVote):
+        _toggle_skip(s, cmd.slot, now, events)
+    elif isinstance(cmd, K.ConfirmNight):
+        _confirm_night(s, cmd.slot, now, events)
+    elif isinstance(cmd, K.NoteActivity):
+        pass  # the activity itself is noted below
     else:
         raise TypeError(f"Unknown command {cmd!r}")
+    slot = getattr(cmd, "voter_slot", getattr(cmd, "actor_slot", getattr(cmd, "slot", None)))
+    if isinstance(cmd, (K.Vote, K.Verdict, K.SubmitAction, K.ToggleSkipVote, K.ConfirmNight, K.NoteActivity)):
+        _note_activity(s, slot, now)  # PACE-7: votes, verdicts, buttons and night actions are activity
     _finalize(s, events)
     return Result(s, events)

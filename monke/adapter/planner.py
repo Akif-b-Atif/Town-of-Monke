@@ -44,11 +44,11 @@ def plan(state: Optional[GameState], archiving: bool = False) -> dict:
             night_talk = (p.alive and phase == C.NIGHT and not paused and slot != state.prisoner_slot)
             out[MAFIA][slot] = SEND if night_talk else VIEW
         # Jail: the prisoner only. The Jailor never has access (relay is via DM).
-        if phase == C.NIGHT and not paused and p.alive and slot == state.prisoner_slot:
-            out[JAIL][slot] = SEND
-        # Graveyard
+        if phase == C.NIGHT and p.alive and slot == state.prisoner_slot:
+            out[JAIL][slot] = VIEW if paused else SEND
+        # Graveyard: the dead talk freely, except while the game is paused (everything is read-only then)
         if not p.alive:
-            out[GRAVEYARD][slot] = SEND
+            out[GRAVEYARD][slot] = VIEW if paused else SEND
     return out
 
 

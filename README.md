@@ -147,6 +147,27 @@ teammates. The card has **Edit will** and, for roles whose ability kills, **Edit
 - **Dawn report:** one message in Town Centre: the dawn line, each death (cause, role reveal, will, note) in slot order, who
   remains, and a stalemate warning when a draw is one quiet cycle away.
 
+### Dead players, pausing, pacing and AFK
+
+- **Dead players** stay in the game: they read Town Centre, talk with the other dead in the Graveyard (their permissions
+  change before the death is announced, so nobody can type in Town Centre in the gap), and dead Mafia keep read-only access
+  to the Lair. The first death pins the Graveyard rules; each death gets a welcome that mentions the player. Keeping the
+  living in the dark is on the honour system; the rules message says so. Dead players keep `/role`, `/journal`, `/alive`,
+  `/votes`, `/rolelist`, `/timer` and `/help`. Only a Jester's ghost with a pending haunt can still act.
+- **Skip ahead** (`early_day`, on by default): the banner has a button during Day 1, Day and Afternoon. When a strict majority
+  of the living (floor(alive/2)+1) have pressed it, Day moves to Noon and Day 1 or Afternoon move to Night. The banner shows
+  `n/needed`. Noon and trials can never be skipped this way; an admin `skip` still ends any phase.
+- **Early night** (`early_night`, off by default): each night prompt gets a Confirm button; when every player holding a prompt
+  has confirmed, the night resolves at once. It leaks nothing about who holds an ability, but it makes the night feel hurried.
+- **Pause:** `monke pause` and `monke resume` freeze and unfreeze the game; the remaining time is stored, every game channel
+  is read-only, the banner shows the pause, and a pause survives restarts and never receives time compensation.
+- **AFK** (`afk_cycles`, default 3, 0 disables): a living player has an inactive day when, between one dusk and the next, they
+  send no Town Centre message, cast no vote or verdict, press no button and (if they hold a prompt) submit no night action.
+  Day 1 is not counted and any activity resets the counter. At 2 inactive days they get a DM warning and the admin is told; at
+  `afk_cycles` they are removed at the next dawn (cause: abandoned, role revealed, will shown). `modkill` covers anything the
+  heuristic misses.
+- The banner is edited in place (new deadline after `extend` or a restart, pause, skip votes) so its countdown stays right.
+
 ### Commands
 
 Every command is defined once in a registry (`monke/adapter/handlers.py`), which generates the slash commands, the
@@ -159,7 +180,7 @@ admin and server commands only.
 the game is told so and nothing else.
 
 **Admins** (Monke Admin role, checked live; only in Monke Commands; slash or `monke ...`): `start`, `status`, `skip`,
-`abort`, `resume`, `export [game_id]`, `admins`, `reloadtext`. `skip`, `abort` and `teardown` ask for confirmation with
+`abort`, `pause`, `resume`, `export [game_id]`, `admins`, `reloadtext`. `skip`, `abort` and `teardown` ask for confirmation with
 Confirm / Cancel buttons that any Monke Admin may press and that expire after 60 seconds.
 **Server managers:** `setup`, `teardown [--force]`.
 

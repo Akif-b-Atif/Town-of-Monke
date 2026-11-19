@@ -8,6 +8,8 @@ from datetime import datetime
 from typing import Optional
 
 from ..archive.channels import CHANNEL_KINDS, session_for
+from ..engine import commands as K
+from ..errors import Rejected
 from .textutil import sanitize_name
 
 log = logging.getLogger("monke.chatlog")
@@ -41,6 +43,7 @@ class ChatLogger:
     def __init__(self, bot):
         self.bot = bot
         self._cfg: dict = {}
+        self._noted_activity: set = set()
 
     async def _config(self, guild_id: int):
         hit = self._cfg.get(guild_id)
@@ -86,6 +89,18 @@ class ChatLogger:
             return
         slot = g.slot_of_user(message.author.id)
         stored = g.players[slot].display_name if slot is not None else ""
+        if kind == "town" and slot is not None and slot not in g.active_today and g.players[slot].alive:
+            noted = self._noted_activity  # PACE-7: noted at most once per phase per player
+            if (g.game_id, g.phase_id, slot) not in noted:
+                noted.add((g.game_id, g.phase_id, slot))
+                async def note(guild_id=g.guild_id, slot=slot):
+                    try:
+                        await self.bot.service.submit(guild_id, K.NoteActivity(slot))
+                    except Rejected:
+                        pass  # a paused game or a finished one: not worth noting
+                svc = getattr(self.bot, "service", None)
+                if svc is not None and hasattr(svc, "_spawn"):
+                    svc._spawn(note())
         sink = getattr(self.bot, "sink", None)  # DBG-3: debug mode shows only the length of human chat
         if sink is not None:
             sink.chat(g, kind, slot, stored or sanitize_name(message.author.display_name), message.content or "")

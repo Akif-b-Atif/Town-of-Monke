@@ -63,7 +63,8 @@ def test_leak_checklist_non_mafia_never_in_lair():
 def test_paused_locks_everything_and_ended_opens_town_only():
     s = at(C.NIGHT, status=C.PAUSED, prisoner_slot=3)
     p = plan(s)
-    assert all(v == VIEW for v in p[TOWN].values()) and all(v == VIEW for v in p[MAFIA].values()) and p[JAIL] == {}
+    assert all(v == VIEW for v in p[TOWN].values()) and all(v == VIEW for v in p[MAFIA].values())
+    assert p[JAIL] == {3: VIEW}  # even the prisoner is read-only while paused
     s = at(C.PHASE_ENDED, status=C.ENDED)
     p = plan(s)
     assert all(v == SEND for v in p[TOWN].values()) and p[MAFIA] == p[JAIL] == p[GRAVEYARD] == {}

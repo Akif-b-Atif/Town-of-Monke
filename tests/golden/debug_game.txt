@@ -15,7 +15,7 @@
 00:00:00 000007 Pre-game DM #06 Sim2 (Veteran) <- 'You are the Veteran\nYou are the **Veteran**, a battle-scarred soldier who sleeps with one eye open. On any night you choose you may go on alert (you have a limited number of alerts). Anyone who visits you that night is shot, friend or foe.\nWiki: https://town-of-salem.fandom.com/wiki/Veteran\nAlignment: Town\nAttack: Powerful\nDefense: None\nAbilities: Go on alert tonight (1 left)\nGoal: Lynch every criminal and evildoer.\nTips: Alerts are limited, so save them for nights you expect visitors. Your own shots hit Town too.'
 00:00:00 000007 Pre-game POST town 'Town of Monke: the game begins\nA hush falls over Monke Town. Somewhere among you, evil is already planning its first move. The role list is posted below.\nPlayers: #1 Sim4\n#2 Sim5\n#3 Sim1\n#4 Sim3\n#5 Sim6\n#6 Sim2\nRole list (6 players): Jailor, Godfather, TS, TK, MK, RT\nGame channels are logged for the post-game archive.'
 00:00:00 000007 Pre-game GAME Roster: #01, #02, #03, #04, #05, #06; role list: jailor, godfather, TS, TK, MK, RT
-00:00:00 000007 Day 1 POST town '**Day 1.** A new game begins. Use this time to plan before night falls.\nEnds <t:120:R> · 6 alive'
+00:00:00 000007 Day 1 POST town '**Day 1.** A new game begins. Use this time to plan before night falls.\nEnds <t:120:R> · 6 alive\nSkip ahead: 0/4'
 00:00:00 000007 Day 1 PHASE Day 1 begins [game_start], ends 1970-01-01 00:02:00
 00:00:00 000007 Day 1 PROMPT #05 Sim6 (Jailor) <- '**Choose who to jail tonight** (today)\nChoose before night falls.'
 00:00:00 000007 Day 1 ACTION #05 Sim6 (Jailor) chose jail -> #06 Sim2 (Veteran) (active=True)
@@ -53,13 +53,13 @@
 00:04:00 000007 Night 1 DEATH #02 Sim5 (Sheriff) died: MAFIA by #04 Sim3 (Godfather); role revealed
 00:04:00 000007 Night 1 POST town '**Day 2.** It is a beautiful morning in the town of Monke.\n\nSim5 (#2) never saw the Mafia's bullet coming.\nSim5 (#2) was the **Sheriff**, a lawman with a tarnished badge and a sharp eye.\n\n5 townspeople remain.'
 00:04:00 000007 Night 1 GAME Dawn of day 2: #02 Sim5 (Sheriff) died, 5 alive
-00:04:00 000007 Day 2 POST town '☀️ **Day 2**\nEnds <t:480:R> · 5 alive'
+00:04:00 000007 Day 2 POST town '☀️ **Day 2**\nEnds <t:480:R> · 5 alive\nSkip ahead: 0/3'
 00:04:00 000007 Day 2 PHASE Day 2 begins [night_resolved], ends 1970-01-01 00:08:00
 00:04:00 000007 Day 2 PROMPT #05 Sim6 (Jailor) <- '**Choose who to jail tonight** (today)\nChoose before night falls.'
 00:08:00 000007 Day 2 Noon POST town 'Discussion is over. Voting is open.\n\n**Noon, Day 2.** The town square fills with whispers. Who will you accuse? You have until <t:660:t>.\nEnds <t:660:R> · 5 alive\nVotes needed for a trial: 3'
 00:08:00 000007 Day 2 Noon POST town '**Votes**\nNobody has voted yet.'
 00:08:00 000007 Day 2 Noon PHASE Day 2 Noon begins [day_timer], ends 1970-01-01 00:11:00
-00:11:00 000007 Day 2 Afternoon POST town 'No accusation stuck. The sun begins to set.\n\n**Afternoon, Day 2.** The shadows lengthen. Talk while you still can; night falls <t:780:t>.\nEnds <t:780:R> · 5 alive'
+00:11:00 000007 Day 2 Afternoon POST town 'No accusation stuck. The sun begins to set.\n\n**Afternoon, Day 2.** The shadows lengthen. Talk while you still can; night falls <t:780:t>.\nEnds <t:780:R> · 5 alive\nSkip ahead: 0/3'
 00:11:00 000007 Day 2 Afternoon PHASE Day 2 Afternoon begins [noon_no_trial], ends 1970-01-01 00:13:00
 00:13:00 000007 Night 2 POST town 'The sun has set. Night 2 begins.\n\n**Night 2.** Doors are bolted, but bolts have never stopped the wicked. Choose before <t:900:t>.\nEnds <t:900:R> · 5 alive'
 00:13:00 000007 Night 2 PHASE Night 2 begins [afternoon_timer], ends 1970-01-01 00:15:00
@@ -81,7 +81,7 @@
 00:15:00 000007 Night 2 DEATH #03 Sim1 (Escort) died: MAFIA by #01 Sim4 (Mafioso); role revealed
 00:15:00 000007 Night 2 POST town '**Day 3.** The market stalls open, but every eye darts nervously.\n\nSim1 (#3) was gunned down in the night by the Mafia.\nSim1 (#3) was the **Escort**, a charmer who kept many an evildoer busy.\n\nOnly 4 are left standing.'
 00:15:00 000007 Night 2 GAME Dawn of day 3: #03 Sim1 (Escort) died, 4 alive
-00:15:00 000007 Day 3 POST town '☀️ **Day 3**\nEnds <t:1140:R> · 4 alive'
+00:15:00 000007 Day 3 POST town '☀️ **Day 3**\nEnds <t:1140:R> · 4 alive\nSkip ahead: 0/3'
 00:15:00 000007 Day 3 PHASE Day 3 begins [night_resolved], ends 1970-01-01 00:19:00
 00:15:00 000007 Day 3 PROMPT #05 Sim6 (Jailor) <- '**Choose who to jail tonight** (today)\nChoose before night falls.'
 00:15:00 000007 Day 3 ACTION #05 Sim6 (Jailor) chose jail -> #04 Sim3 (Godfather) (active=True)
@@ -138,7 +138,7 @@
 00:20:40 000007 Day 3 Verdict POST town '💀 The noose tightened around Sim2 (#6). The town has made its choice.\nSim2 (#6) was the **Veteran**, a paranoid soldier who trusted nobody.'
 00:20:40 000007 Day 3 Verdict POST graveyard 'Welcome to the graveyard, <@1001>. You may watch the town and speak with the dead.'
 00:20:40 000007 Day 3 Verdict DEATH #06 Sim2 (Veteran) died: LYNCHED; role revealed
-00:20:40 000007 Day 3 Afternoon POST town 'Guilty! The town sends **Sim2 (#6)** to the noose.\n\n**Afternoon, Day 3.** The day wanes. Say what must be said before <t:1360:t>.\nEnds <t:1360:R> · 3 alive'
+00:20:40 000007 Day 3 Afternoon POST town 'Guilty! The town sends **Sim2 (#6)** to the noose.\n\n**Afternoon, Day 3.** The day wanes. Say what must be said before <t:1360:t>.\nEnds <t:1360:R> · 3 alive\nSkip ahead: 0/2'
 00:20:40 000007 Day 3 Afternoon PHASE Day 3 Afternoon begins [verdict_guilty], ends 1970-01-01 00:22:40
 00:20:40 000007 Day 3 Afternoon ACTION #05 Sim6 (Jailor) chose jail -> #04 Sim3 (Godfather) (active=True)
 00:22:40 000007 Night 3 POST town 'The sun has set. Night 3 begins.\n\n**Night 3.** Darkness settles over Monke Town. Make your choices before <t:1480:t>.\nEnds <t:1480:R> · 3 alive'
@@ -163,7 +163,7 @@
 00:24:40 000007 Night 3 DEATH #05 Sim6 (Jailor) died: MAFIA by #01 Sim4 (Mafioso); role revealed
 00:24:40 000007 Night 3 POST town '**Day 4.** Mist hangs over the rooftops of Monke Town as the townsfolk stir.\n\nSim6 (#5) was found dead, a calling card of the Mafia beside them.\nSim6 (#5) was the **Jailor**, a merciless keeper of the town dungeon.\n\n2 townspeople remain.'
 00:24:40 000007 Night 3 GAME Dawn of day 4: #05 Sim6 (Jailor) died, 2 alive
-00:24:40 000007 Day 4 POST town '☀️ **Day 4**\nEnds <t:1720:R> · 2 alive'
+00:24:40 000007 Day 4 POST town '☀️ **Day 4**\nEnds <t:1720:R> · 2 alive\nSkip ahead: 0/2'
 00:24:40 000007 Day 4 PHASE Day 4 begins [night_resolved], ends 1970-01-01 00:28:40
 00:24:40 000007 Day 4 POST town 'The Mafia wins!\n**The Mafia wins!** The town is theirs, and nobody is left to say otherwise.\n\nSim4 (#1): Mafioso 🏆\nSim5 (#2): Sheriff 💀\nSim1 (#3): Escort 💀\nSim3 (#4): Godfather 🏆\nSim6 (#5): Jailor 💀\nSim2 (#6): Veteran 💀\nthe Mafia took the town • after day 4'
 00:24:40 000007 Day 4 GAME Game over: Mafia (the Mafia took the town)

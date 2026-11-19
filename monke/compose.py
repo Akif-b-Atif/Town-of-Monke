@@ -143,10 +143,25 @@ class Composer:
                                                resolve=lambda s: self.name(state, s), **vars_)
             variants[key] = i
             lines.append(text)
-        lines.append(self.t(state, "ui.banner.status", rel=f"<t:{int(p['ends_at'])}:R>", alive=len(state.alive_slots())))
+        if state.status == C.PAUSED:  # PACE-5: the banner shows the pause
+            lines.append(self.t(state, "ui.banner.paused"))
+        else:
+            lines.append(self.t(state, "ui.banner.status", rel=f"<t:{int(p['ends_at'])}:R>", alive=len(state.alive_slots())))
         if phase == C.NOON and ctx.get("needed") is not None:
             lines.append(self.t(state, "ui.banner.votes", needed=ctx["needed"]))
+        if self.skippable(state, phase):  # PACE-2: n/needed
+            from .engine.phases import skip_needed
+            lines.append(self.t(state, "ui.banner.skip", count=len(state.skip_votes), needed=skip_needed(state)))
         return "\n".join(lines), variants
+
+    @staticmethod
+    def skippable(state, phase=None) -> bool:
+        return bool(state.settings.early_day) and (phase or state.phase) in (C.DAY_1, C.DAY, C.AFTERNOON)
+
+    def banner_view(self, state, phase_id, phase=None):
+        if self.skippable(state, phase):
+            return ("skip", state.game_id, phase_id, self.t(state, "ui.button.skip_ahead"))
+        return None
 
     # ------------------------------------------------------------------ deaths and the dawn report (CARD-5)
     def cause_line(self, state, slot: int, causes: list) -> str:
@@ -251,7 +266,8 @@ class Composer:
 
     def _e_PhaseChanged(self, state, e):
         text, variants = self.banner(state, e.payload)
-        out = [Msg("town", text, effect="banner", meta={"variants": variants, "phase_id": e.payload["phase_id"]})]
+        out = [Msg("town", text, effect="banner", view=self.banner_view(state, e.payload["phase_id"], e.payload["phase"]),
+                   meta={"variants": variants, "phase_id": e.payload["phase_id"], "payload": e.payload})]
         if e.payload["phase"] == C.NOON:  # CMD-5: a vote panel; its tally is edited, not reposted
             from .adapter.info import tally_embed
             names = {s: self.name(state, s) for s in state.alive_slots()}
@@ -260,6 +276,13 @@ class Composer:
             out.append(Msg("town", embed=tally_embed(self, state), view=view, effect="panel",
                            meta={"phase_id": e.payload["phase_id"]}))
         return out
+
+    def _edit_banner(self, state, e):
+        """PACE-1: /extend, a restart compensation, a pause and Skip ahead votes edit the banner in place."""
+        return [Msg("town", effect="banner_edit", meta={"phase_id": e.payload.get("phase_id")})]
+
+    _e_PhaseExtended = _edit_banner
+    _e_SkipVotesChanged = _edit_banner
 
     def _e_DawnReport(self, state, e):
         return [Msg("town", self.dawn(state, e.payload))]
@@ -270,6 +293,8 @@ class Composer:
         if p.get("items"):  # a night recap: a title, then one line per result in resolution order (QOL-9)
             text = "\n".join([text] + [self.t(state, i["text_key"], **i.get("vars", {})) for i in p["items"]])
         aud = e.audience
+        if aud == E.NOTICE:  # a short spoiler-safe note for Monke Commands (AFK warnings)
+            return [Msg("commands", text, meta={"notice": True})]
         if aud == E.PUBLIC:
             return [Msg("town", text)]
         if aud.startswith("alignment:"):
@@ -390,7 +415,8 @@ class Composer:
         p = e.payload
         names = {s: self.name(state, s) for s in p["options"]}
         label = self.ability_label(state, p["role_id"], p["ability_id"], p.get("uses_left"))
-        view = ("prompt", p, names, label, self.t(state, "ui.prompt.do_nothing"))
+        confirm = self.t(state, "ui.button.confirm") if state.settings.early_night and p["phase_kind"] == C.KIND_NIGHT else None
+        view = ("prompt", p, names, label, self.t(state, "ui.prompt.do_nothing"), confirm)  # PACE-3
         return [Msg(e.audience, self.prompt(state, p), view=view, meta={"token": p["token"], "label": label})]
 
     def _e_JailStarted(self, state, e):
@@ -400,6 +426,7 @@ class Composer:
         return [Msg("jail", effect="purge_jail")]
 
     def _e_StatusChanged(self, state, e):
+        out = [Msg("town", effect="banner_edit", meta={})]  # the banner shows the pause (PACE-5)
         if e.payload["status"] == C.PAUSED:
-            return [Msg("commands", self.t(state, "admin.game_paused"), meta={"notice": True})]
-        return []
+            out.append(Msg("commands", self.t(state, "admin.game_paused"), meta={"notice": True}))
+        return out

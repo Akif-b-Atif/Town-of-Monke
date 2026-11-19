@@ -250,6 +250,11 @@ async def h_abort(bot, ctx):
     await _admin_submit(bot, ctx, K.Abort(), "admin.abort.done", "abort")
 
 
+async def h_pause(bot, ctx):
+    """PACE-5: freeze the game and its clock. The remaining time is stored; a pause survives restarts."""
+    await _admin_submit(bot, ctx, K.Pause("admin"), "admin.paused", "pause")
+
+
 async def h_resume(bot, ctx):
     await _admin_submit(bot, ctx, K.Resume(), "admin.resumed", "resume")
 
@@ -373,6 +378,7 @@ COMMANDS: list = [
     CommandSpec("status", "admin", (), h_status, prefix=True),
     CommandSpec("skip", "admin", (), h_skip, prefix=True, confirm=c_skip),
     CommandSpec("abort", "admin", (), h_abort, prefix=True, confirm=c_abort),
+    CommandSpec("pause", "admin", (), h_pause, prefix=True),
     CommandSpec("resume", "admin", (), h_resume, prefix=True),
     CommandSpec("export", "admin", (A("game_id", "text"),), h_export, prefix=True),
     CommandSpec("admins", "admin_any", (), h_admins, prefix=True),

@@ -48,6 +48,24 @@ class Resume:
 
 
 @dataclass
+class ToggleSkipVote:
+    """PACE-2: a player presses Skip ahead (or presses it again to take the vote back)."""
+    slot: int
+
+
+@dataclass
+class ConfirmNight:
+    """PACE-3: a player confirms their night is done."""
+    slot: int
+
+
+@dataclass
+class NoteActivity:
+    """PACE-7: a player did something that counts as activity (a Town Centre message)."""
+    slot: int
+
+
+@dataclass
 class SetWill:
     slot: int
     text: str

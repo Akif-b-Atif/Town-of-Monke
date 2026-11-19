@@ -47,7 +47,7 @@ async def play(seed):
 def test_chaos_no_duplicates_no_missed_events(seed):
     async def go():
         world, proc, game_id, crashes, final = await play(seed)
-        texts = [p[2] for p in world.posts if p[0] == "post" and not p[2].startswith("rel.")]  # restart notices may repeat
+        texts = [p[2] for p in world.posts if p[0] == "post" and not p[2].startswith(("rel.", "announce afk"))]  # these may repeat
         assert len(texts) == len(set(texts)), sorted({t for t in texts if texts.count(t) > 1})
         assert await proc.store.rendered_seq(game_id) == await proc.store.max_event_seq(game_id)
         # every PhaseChanged of the game that is not stale was posted once

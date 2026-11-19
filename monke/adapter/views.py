@@ -242,6 +242,12 @@ class EditorButton(discord.ui.DynamicItem[discord.ui.Button],
         await open_editor(interaction, state, slot, self.kind)
 
 
+def skip_view(game_id: str, phase_id, label: str) -> discord.ui.View:
+    v = discord.ui.View(timeout=None)
+    v.add_item(SkipButton(game_id, str(phase_id), label))
+    return v
+
+
 def card_view(game_id: str, kills: bool, labels: dict) -> discord.ui.View:
     """CARD-1: Edit Will, and for roles whose ability kills, Edit Death Note."""
     v = discord.ui.View(timeout=None)
@@ -251,7 +257,66 @@ def card_view(game_id: str, kills: bool, labels: dict) -> discord.ui.View:
     return v
 
 
-DYNAMIC_ITEMS = (ActionSelect, ToggleButton, VerdictButton, PanelSelect, PanelUnvote, EditorButton)
+# ---------------------------------------------------------------------------------------- pacing buttons (PACE-2, PACE-3)
+class SkipButton(discord.ui.DynamicItem[discord.ui.Button],
+                 template=rf"monke:skip:(?P<game>{_GAME}):(?P<phase>\d+)"):
+    """On the banner during Day 1, Day and Afternoon. Pressing toggles your vote; a majority advances the phase."""
+
+    def __init__(self, game: str, phase: str, label: str = ""):
+        self.game, self.phase = game, phase
+        super().__init__(discord.ui.Button(label=label or "Skip ahead", custom_id=f"monke:skip:{game}:{phase}",
+                                           style=discord.ButtonStyle.secondary))
+
+    @classmethod
+    async def from_custom_id(cls, interaction, item, match, /):
+        return cls(match["game"], match["phase"])
+
+    async def callback(self, interaction: discord.Interaction):
+        service = interaction.client.service
+        state = service.find_by_game_id(self.game)
+        if state is None or state.status != C.RUNNING or str(state.phase_id) != self.phase:
+            return await interaction.response.send_message(_t(interaction, "error.stale_prompt", state), ephemeral=True)
+        slot = state.slot_of_user(interaction.user.id)
+        if slot is None:
+            return await interaction.response.send_message(_t(interaction, "error.not_in_game", state), ephemeral=True)
+        try:
+            new = await service.submit(state.guild_id, K.ToggleSkipVote(slot))
+        except Rejected as e:
+            return await interaction.response.send_message(interaction.client.presenter.composer.error(e, state),
+                                                           ephemeral=True)
+        from ..engine.phases import skip_needed
+        await interaction.response.send_message(
+            _t(interaction, "phase.skip.progress", new, count=len(new.skip_votes), needed=skip_needed(new)), ephemeral=True)
+
+
+class NightConfirmButton(discord.ui.DynamicItem[discord.ui.Button],
+                         template=rf"monke:nconf:(?P<game>{_GAME}):(?P<token>n\d+)"):
+    """On every night prompt when early_night is on: when everyone holding a prompt has confirmed, night resolves."""
+
+    def __init__(self, game: str, token: str, label: str = ""):
+        self.game, self.token = game, token
+        super().__init__(discord.ui.Button(label=label or "Confirm", custom_id=f"monke:nconf:{game}:{token}",
+                                           style=discord.ButtonStyle.success))
+
+    @classmethod
+    async def from_custom_id(cls, interaction, item, match, /):
+        return cls(match["game"], match["token"])
+
+    async def callback(self, interaction: discord.Interaction):
+        found, err = _find(interaction, self.game, "night", self.token)
+        if err:
+            return await interaction.response.send_message(err, ephemeral=True)
+        state, slot = found
+        try:
+            await interaction.client.service.submit(state.guild_id, K.ConfirmNight(slot))
+        except Rejected as e:
+            return await interaction.response.send_message(interaction.client.presenter.composer.error(e, state),
+                                                           ephemeral=True)
+        await interaction.response.send_message(_t(interaction, "action.confirm.confirm", state), ephemeral=True)
+
+
+DYNAMIC_ITEMS = (ActionSelect, ToggleButton, VerdictButton, PanelSelect, PanelUnvote, EditorButton, SkipButton,
+                 NightConfirmButton)
 
 
 def verdict_view(game_id: str, token: str, labels: dict = None) -> discord.ui.View:
@@ -261,7 +326,8 @@ def verdict_view(game_id: str, token: str, labels: dict = None) -> discord.ui.Vi
     return v
 
 
-def prompt_view(payload: dict, names: dict, label: str = "", do_nothing: str = "Do nothing") -> discord.ui.View:
+def prompt_view(payload: dict, names: dict, label: str = "", do_nothing: str = "Do nothing",
+                confirm_label: str = None) -> discord.ui.View:
     """names: slot -> display label for select options. `label` and `do_nothing` come from the text system."""
     v = discord.ui.View(timeout=None)
     kind = payload["phase_kind"].lower()
@@ -273,4 +339,6 @@ def prompt_view(payload: dict, names: dict, label: str = "", do_nothing: str = "
         for slot in payload["options"]:
             opts.append(discord.SelectOption(label=names.get(slot, f"Player {slot}")[:100], value=str(slot)))
         v.add_item(ActionSelect(payload["game_id"], kind, payload["token"], payload["ability_id"], options=opts))
+    if confirm_label:  # PACE-3: early night end
+        v.add_item(NightConfirmButton(payload["game_id"], payload["token"], confirm_label))
     return v
