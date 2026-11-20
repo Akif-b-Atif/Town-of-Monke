@@ -110,7 +110,7 @@ class Composer:
         target = ctx.get("target_slot")
         if reason in ("game_start", "night_resolved", "trial_majority"):
             return ""
-        simple = {"day1_timer": "transition.day1_timer", "day_timer": "transition.day_timer",
+        simple = {"trial_cancelled": "noon.no_trial", "day1_timer": "transition.day1_timer", "day_timer": "transition.day_timer",
                   "defense_timer": "transition.defense_timer", "skip_early": "transition.skip_early",
                   "noon_no_trial": "noon.no_trial", "noon_timeout_after_pardon": "noon.no_trial",
                   "three_innocent": "trial.three_innocent"}
@@ -391,7 +391,9 @@ class Composer:
             lines.append(line)
         emb = {"title": self.t(state, f"ui.end.title.{k}"), "description": "\n".join(desc + [""] + lines),
                "color": "gold", "footer": self.t(state, "ui.end.footer", reason=p["reason"], day=p["days"])}
-        return [Msg("town", embed=emb)]
+        # POST-1: the same game-over embed goes to Monke Lobby, with a Play again button (LOB-10)
+        return [Msg("town", embed=emb), Msg("lobby", embed=emb, view=("rematch", state.game_id,
+                                                                       self.t(state, "ui.button.play_again")))]
 
     def fate(self, state, slot: int) -> str:
         """How a player ended, for the game-over list: survived, or who killed them and when."""
@@ -406,6 +408,64 @@ class Composer:
 
     def card_labels(self, state) -> dict:
         return {"will": self.t(state, "ui.button.edit_will"), "note": self.t(state, "ui.button.edit_note")}
+
+    def _e_PlayerReplaced(self, state, e):
+        """ADM2-1: the slot role moves to the new person, who gets the role card, a journal summary and the banner."""
+        from .adapter.info import journal_text
+        from .engine.rolecard import role_card
+        slot, to = e.payload["slot"], f"slot:{e.payload['slot']}"
+        p = state.players[slot]
+        card = role_card(state, p)
+        view = ("card", state.game_id, bool(card.get("kills")), self.card_labels(state)) if p.alive else None
+        banner, _ = self.banner(state, self.banner_payload(state))
+        return [Msg(to, effect="replace_roles", meta={"old": e.payload["old_user_id"], "new": e.payload["new_user_id"]}),
+                Msg(to, self.t(state, "admin.replace.test_dm")),
+                Msg(to, embed=self.card(state, card), view=view),
+                Msg(to, journal_text(self, state, slot)), Msg(to, banner)]
+
+    @staticmethod
+    def banner_payload(state) -> dict:
+        return {"phase": state.phase, "day_number": state.day_number, "night_number": state.night_number,
+                "ends_at": state.phase_ends_at, "phase_id": state.phase_id, "reason": "", "ctx": {}}
+
+    # ------------------------------------------------------------------ game over and the recap (POST-1, POST-2)
+    def recap(self, state, events: list) -> list:
+        """[(kind, text)] built from the event log alone: a day-by-day timeline of deaths and causes, trials with
+        counts and voters, jail and execution moments, and what each investigation returned (POST-2)."""
+        out = [("header", self.t(state, "end.recap.header"))]
+        join = self.bank.render("ui.join.and", variant=0)
+        for e in events:
+            t, p = e["type"], e["payload"]
+            if t == "PhaseChanged" and p["phase"] in (C.DAY_1, C.NIGHT) or (t == "PhaseChanged" and p["phase"] == C.DAY):
+                if p["phase"] == C.NIGHT:
+                    out.append(("night", self.t(state, "end.recap.night", night=p["night_number"])))
+                else:
+                    out.append(("day", self.t(state, "end.recap.day", day=p["day_number"])))
+            elif t == "VerdictsRevealed":
+                guilty = [v["slot"] for v in p["votes"] if v["verdict"] == C.GUILTY]
+                if p["guilty"] > p["innocent"]:
+                    text = self.t(state, "end.recap.lynch", target=p["defendant"], count=p["guilty"], needed=p["innocent"])
+                else:
+                    text = self.t(state, "end.recap.pardon", target=p["defendant"], count=p["guilty"], needed=p["innocent"])
+                if guilty:
+                    text += " " + self.t(state, "ui.verdict.guilty", count=len(guilty), players=self.name_list(state, guilty))
+                out.append(("lynch" if p["guilty"] > p["innocent"] else "pardon", text))
+            elif t == "JailStarted":
+                out.append(("jail", self.t(state, "end.recap.jail", target=p["prisoner"])))
+            elif t == "PlayerDied":
+                if C.EXECUTED in p["causes"]:
+                    out.append(("execute", self.t(state, "end.recap.execute", target=p["slot"])))
+                elif p["causes"] != [C.LYNCHED]:
+                    causes = join.join(self.bank.render(f"ui.cause.{CAUSE_KEYS[x]}", variant=0) for x in p["causes"])
+                    out.append(("death", self.t(state, "end.recap.death", player=p["slot"], causes=causes)))
+            elif t == "NightTrace":
+                for step in p.get("steps", []):
+                    if step["step"] == "investigate" and step.get("outcome") in ("result", "role_revealed"):
+                        d = step.get("detail") or {}
+                        text = d.get("role") if step["outcome"] == "role_revealed" else d.get("result")
+                        out.append(("investigation", self.t(state, "end.recap.investigation", player=step["actor"],
+                                                           target=step["target"], text=text)))
+        return out
 
     def _e_RoleAssigned(self, state, e):
         view = ("card", state.game_id, bool(e.payload.get("kills")), self.card_labels(state))

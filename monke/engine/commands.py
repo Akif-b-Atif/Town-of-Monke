@@ -48,6 +48,27 @@ class Resume:
 
 
 @dataclass
+class Extend:
+    """ADM2-3: add time to the running phase (and to its length, so warnings and compensation stay right)."""
+    seconds: float
+
+
+@dataclass
+class ModKill:
+    """ADM2-2: remove a player. Applies at once by day; queued during Night and announced at dawn."""
+    slot: int
+    reason: str = ""
+
+
+@dataclass
+class Replace:
+    """ADM2-1: a new person takes over a slot. The names are already sanitised."""
+    slot: int
+    new_user_id: int
+    new_name: str = ""
+
+
+@dataclass
 class ToggleSkipVote:
     """PACE-2: a player presses Skip ahead (or presses it again to take the vote back)."""
     slot: int

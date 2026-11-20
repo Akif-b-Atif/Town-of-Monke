@@ -114,8 +114,10 @@ def new_game(game_id: str, guild_id: int, user_ids: list, tokens: list, settings
     for p in s.players.values():
         p.state = get_handler(p.role_id).init_state(s, p)
     s.save_rng(rng)
-    events = [E.ev(E.T.ROLE_ASSIGNED, E.to_slot(slot), **role_card(s, s.players[slot]))
-              for slot in sorted(s.players)]
+    events = [E.ev(E.T.GAME_CREATED, E.ADMIN, game_id=game_id, guild_id=guild_id, seed=seed, user_ids=list(user_ids),
+                   tokens=list(tokens), names={str(k): v for k, v in (names or {}).items()},
+                   settings=dataclasses.asdict(settings), resolved=s.settings_resolved)]  # the start of a replay
+    events += [E.ev(E.T.ROLE_ASSIGNED, E.to_slot(slot), **role_card(s, s.players[slot])) for slot in sorted(s.players)]
     _finalize(s, events)
     return s, events
 
@@ -146,6 +148,68 @@ def _enter_afternoon(s: GameState, now: float, events: list, reason: str, **ctx)
 
 # ---------------------------------------------------------------------------------------- pacing (PACE-2, 3, 7)
 SKIPPABLE = (C.DAY_1, C.DAY, C.AFTERNOON)
+
+
+def _extend(s: GameState, cmd: K.Extend, now: float, events: list) -> None:
+    """ADM2-3: the same machinery as ShiftDeadline. A paused game gets the time added to what it has left."""
+    if cmd.seconds <= 0:
+        raise Rejected("error.bad_duration", causes=str(cmd.seconds))
+    if s.status == C.PAUSED:
+        s.admin_pause_remaining = (s.admin_pause_remaining or 0.0) + cmd.seconds
+    else:
+        s.phase_ends_at += cmd.seconds
+    s.phase_length += cmd.seconds
+    events.append(E.ev(E.T.PHASE_EXTENDED, phase_id=s.phase_id, ends_at=s.phase_ends_at, reason="extend",
+                       seconds=cmd.seconds))
+
+
+def _modkill(s: GameState, cmd: K.ModKill, now: float, events: list) -> None:
+    """ADM2-2: cause MODERATED, role revealed by the normal rules. By day it applies at once; during Night it is
+    queued and announced at dawn."""
+    p = s.players.get(cmd.slot)
+    if p is None:
+        raise Rejected("error.unknown_target")
+    if not p.alive:
+        raise Rejected("error.dead_target")
+    if s.phase == C.NIGHT:
+        if cmd.slot not in s.modkill_queue:
+            s.modkill_queue.append(cmd.slot)
+        return
+    events.append(deaths.kill(s, cmd.slot, [C.MODERATED], where="day"))
+    s.death_this_cycle = True
+    s.votes = {v: t for v, t in s.votes.items() if v != cmd.slot and t != cmd.slot}
+    s.skip_votes = [x for x in s.skip_votes if x != cmd.slot]
+    defendant = s.trial["defendant"] if s.trial else None
+    if defendant == cmd.slot:  # the person on trial was removed: the trial is over, back to Noon
+        rem = s.paused_remaining or 10.0
+        s.trial, s.paused_remaining = None, None
+        outcome = wincheck.check(s)
+        if outcome:
+            return _end_game(s, outcome, events)
+        return _enter_noon(s, now, events, duration=max(1.0, rem), reason="trial_cancelled")
+    outcome = wincheck.check(s)
+    if outcome:
+        _end_game(s, outcome, events)
+
+
+def _replace(s: GameState, cmd: K.Replace, now: float, events: list) -> None:
+    """ADM2-1: swap a player mid-game. Per-role state and the journal carry over unchanged; the old person is kept in
+    Player.former so the archive shows both; the announcement names the slot and both people and nothing else."""
+    p = s.players.get(cmd.slot)
+    if p is None:
+        raise Rejected("error.unknown_target")
+    if s.slot_of_user(cmd.new_user_id) is not None:
+        raise Rejected("error.distinct_players")
+    old_user, old_name = p.user_id, p.display_name
+    p.former.append({"user_id": old_user, "name": old_name, "day": s.day_number, "night": s.night_number})
+    p.user_id, p.display_name = cmd.new_user_id, cmd.new_name
+    events.append(E.ev(E.T.REPLACED, slot=cmd.slot, old_user_id=old_user, new_user_id=cmd.new_user_id,
+                       old_name=old_name, new_name=cmd.new_name))
+    _announce(events, "admin.replaced", slot=cmd.slot, player=old_name or f"Player {cmd.slot}",
+              target=cmd.new_name or f"Player {cmd.slot}")
+    if p.alive:  # the new person gets the open prompts of this phase
+        for pr in prompts_for(s, cmd.slot):
+            events.append(prompt_event(s, p, pr))
 
 
 def skip_needed(s: GameState) -> int:
@@ -410,6 +474,10 @@ def handle(state: GameState, cmd, now: float) -> Result:
         if p.alive and not p.state.get("inactive"):
             p.state["inactive"] = True
             _announce(events, "admin.player_left", E.ADMIN, player=cmd.slot)
+    elif isinstance(cmd, (K.Extend, K.ModKill, K.Replace)):
+        if s.status not in (C.RUNNING, C.PAUSED):
+            raise Rejected("error.game_not_running")
+        {K.Extend: _extend, K.ModKill: _modkill, K.Replace: _replace}[type(cmd)](s, cmd, now, events)
     elif isinstance(cmd, (K.SetWill, K.SetDeathNote)):
         if s.status == C.STARTING:
             raise Rejected("error.not_started")

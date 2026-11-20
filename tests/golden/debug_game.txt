@@ -165,5 +165,6 @@
 00:24:40 000007 Night 3 GAME Dawn of day 4: #05 Sim6 (Jailor) died, 2 alive
 00:24:40 000007 Day 4 POST town '☀️ **Day 4**\nEnds <t:1720:R> · 2 alive\nSkip ahead: 0/2'
 00:24:40 000007 Day 4 PHASE Day 4 begins [night_resolved], ends 1970-01-01 00:28:40
-00:24:40 000007 Day 4 POST town 'The Mafia wins!\n**The Mafia wins!** The town is theirs, and nobody is left to say otherwise.\n\nSim4 (#1): Mafioso 🏆\nSim5 (#2): Sheriff 💀\nSim1 (#3): Escort 💀\nSim3 (#4): Godfather 🏆\nSim6 (#5): Jailor 💀\nSim2 (#6): Veteran 💀\nthe Mafia took the town • after day 4'
+00:24:40 000007 Day 4 POST town 'The Mafia wins!\n**The Mafia wins!** The town is theirs, and nobody is left to say otherwise.\n\nSim4 (#1): Mafioso (survived) 🏆\nSim5 (#2): Sheriff (the Mafia, Night 1) 💀\nSim1 (#3): Escort (the Mafia, Night 2) 💀\nSim3 (#4): Godfather (survived) 🏆\nSim6 (#5): Jailor (the Mafia, Night 3) 💀\nSim2 (#6): Veteran (the town, Day 3) 💀\nthe Mafia took the town • after day 4'
+00:24:40 000007 Day 4 POST lobby 'The Mafia wins!\n**The Mafia wins!** The town is theirs, and nobody is left to say otherwise.\n\nSim4 (#1): Mafioso (survived) 🏆\nSim5 (#2): Sheriff (the Mafia, Night 1) 💀\nSim1 (#3): Escort (the Mafia, Night 2) 💀\nSim3 (#4): Godfather (survived) 🏆\nSim6 (#5): Jailor (the Mafia, Night 3) 💀\nSim2 (#6): Veteran (the town, Day 3) 💀\nthe Mafia took the town • after day 4'
 00:24:40 000007 Day 4 GAME Game over: Mafia (the Mafia took the town)

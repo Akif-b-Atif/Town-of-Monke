@@ -271,6 +271,12 @@ def resolve(s, events: list) -> NightResult:
             result.deaths.append((slot, [C.ABANDONED]))
             T("death", slot, None, "died", causes=[C.ABANDONED])
 
+    for slot in list(s.modkill_queue):  # ADM2-2: an admin removal ordered during the night, announced at dawn
+        if players[slot].alive:
+            result.death_events.append(deaths.kill(s, slot, [C.MODERATED], where="dawn"))
+            result.deaths.append((slot, [C.MODERATED]))
+            T("death", slot, None, "died", causes=[C.MODERATED])
+    s.modkill_queue = []
     if prisoner is not None and players[prisoner].alive:
         note(prisoner, "jail.release")
     events.append(E.ev(E.T.NIGHT_TRACE, E.ADMIN, night=s.night_number, steps=trace))

@@ -110,7 +110,8 @@ def archive_summary(state, events) -> dict:
         p = state.players[slot]
         d = get_def(p.role_id)
         rows.append({"slot": slot, "name": p.display_name or "Player", "role": d.name, "alignment": d.alignment,
-                     "fate": _fate(p), "winner": slot in state.winners})
+                     "fate": _fate(p), "winner": slot in state.winners,
+                     "former": [f.get("name") or "Player" for f in p.former]})  # ADM2-1: replaced players
     ts = [e["ts_ms"] for e in events] or [0]
     return {"game_id": state.game_id, "winner": faction_title(state.winning_faction), "reason": state.end_reason or "",
             "days": state.day_number, "duration_s": max(0, (max(ts) - min(ts)) // 1000), "players": rows}
@@ -220,7 +221,8 @@ def build_archive(state, events: list, commands: list, chat_rows: list, meta: di
           f"Bot version: {meta.get('bot_version', '?')}", f"Seed: {state.rng_seed}", "",
           "Players", "slot  name                  role              alignment  fate                          winner"]
     for r in summ["players"]:
-        rd.append(f"{r['slot']:>4}  {r['name']:<20}  {r['role']:<16}  {r['alignment']:<9}  {r['fate']:<28}  "
+        who_ = r["name"] + (f" (replaced {', '.join(r['former'])})" if r.get("former") else "")
+        rd.append(f"{r['slot']:>4}  {who_:<20}  {r['role']:<16}  {r['alignment']:<9}  {r['fate']:<28}  "
                   f"{'yes' if r['winner'] else 'no'}")
     s = state.settings
     rd += ["", "Role list: " + ", ".join(state.rolelist), "",

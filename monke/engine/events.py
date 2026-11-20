@@ -36,6 +36,8 @@ class T:
     STATUS = "StatusChanged"
     PHASE_EXTENDED = "PhaseExtended"
     SKIP_VOTES = "SkipVotesChanged"
+    REPLACED = "PlayerReplaced"
+    GAME_CREATED = "GameCreated"
     DAWN = "DawnReport"  # one public report per dawn (CARD-5)
     NIGHT_TRACE = "NightTrace"  # ARC-5, audience admin: archive only
     ADMIN_ACTION = "AdminAction"  # ARC-6, audience admin: archive only

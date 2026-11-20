@@ -128,7 +128,8 @@ class GameService:
             seed = secrets.randbits(48) if seed is None else seed
             state, events = new_game(secrets.token_hex(6), guild_id, user_ids, tokens, settings, seed, strict=strict,
                                      names=names, resolved=resolved)
-            await self.store.save_game(state)
+            # only GameCreated is logged at start (private role cards are derived): it is where a replay begins
+            await self.store.save_game(state, [e for e in events if e.type == "GameCreated"])
             self.games[guild_id] = state
             self.sink.game_started(state)
             try:
@@ -279,8 +280,18 @@ class GameService:
         await self.presenter.reconcile(state)
         await self.presenter.apply_permissions(state, force=True)
 
+    async def _post_recap(self, state: GameState) -> None:
+        events = await self.store.load_events(state.game_id)
+        await self._call("post_recap", state, events)
+
     async def _post_game_cleanup(self, guild_id: int, game_id: str, immediate: bool = False) -> None:
         if not immediate:
+            st = self.games.get(guild_id)
+            if st is not None and st.game_id == game_id:
+                try:  # POST-2: the recap goes up as the post-game window opens
+                    await self._post_recap(st)
+                except Exception:
+                    log.exception("the post-game recap failed")
             await asyncio.sleep(self._post_game_window(guild_id))  # the post-game chat window
         state = self.games.get(guild_id)
         if state is None or state.game_id != game_id:
@@ -573,7 +584,7 @@ class GameService:
             paused.status = C.PAUSED
         self.games[state.guild_id] = paused
         self.scheduler.cancel(state.game_id)
-        await self.store.save_game(paused)
+        await self.store.save_game(paused, commands=[self._command_row(K.Pause(reason), True)])
 
     async def _gap_fill(self, state: GameState) -> None:
         """REL-9: fetch what was said in the game channels while the bot was offline into chat_log

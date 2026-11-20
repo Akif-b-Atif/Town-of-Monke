@@ -120,6 +120,12 @@ class Describer:
             return [("SYSTEM", f"Jail: {w(p['jailor'])} jails {w(p['prisoner'])}")]
         if t == "JailEnded":
             return [("SYSTEM", f"Jail ends: prisoner {w(p['prisoner'])}")]
+        if t == "PlayerReplaced":
+            return [("ADMIN", f"slot {p['slot']}: {p.get('old_name') or 'Player'} replaced by {p.get('new_name') or 'Player'}")]
+        if t == "PhaseExtended":
+            return [("SYSTEM", f"phase extended ({p.get('reason')}), now ends {fmt_ts(int(p['ends_at'] * 1000))}")]
+        if t == "SkipVotesChanged":
+            return [("SYSTEM", f"{self.who(p.get('voter'))} toggled skip ahead ({p.get('count')}/{p.get('needed')})")]
         if t == "StatusChanged":
             return [("SYSTEM", f"Game status: {p.get('status')}")]
         if t == "GameEnded":
@@ -144,6 +150,14 @@ class Describer:
             return [(src, f"REJECTED {t} {json.dumps(p, sort_keys=True)}: {c.get('reason')}")]
         if t == "AdvancePhase" and p.get("force"):
             return [("SYSTEM", "phase advanced early by an admin command")]
+        if t == "Replace":
+            return [("ADMIN", f"{w(p.get('slot'))} replaced by user {p.get('new_user_id')} ({p.get('new_name') or 'unnamed'})")]
+        if t == "ModKill":
+            return [("ADMIN", f"modkill {w(p.get('slot'))}" + (f": {p['reason']}" if p.get("reason") else ""))]
+        if t == "Extend":
+            return [("ADMIN", f"phase extended by {int(p.get('seconds', 0))}s")]
+        if t == "ShiftDeadline":
+            return [("SYSTEM", f"deadline moved ({p.get('reason', 'downtime')})")]
         if t in ("Abort", "Resume", "Pause", "Abandon", "BeginGame"):
             return [("SYSTEM", f"command {t} {json.dumps(p, sort_keys=True)}")]
         return []  # accepted votes, verdicts and timer advances are already visible as events

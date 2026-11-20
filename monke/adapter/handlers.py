@@ -255,6 +255,83 @@ async def h_pause(bot, ctx):
     await _admin_submit(bot, ctx, K.Pause("admin"), "admin.paused", "pause")
 
 
+async def h_extend(bot, ctx, time: str = ""):
+    """ADM2-3: add time to the running phase (default 2 minutes); the banner and timer follow."""
+    from ..engine.settings import parse_duration
+    seconds = parse_duration("extend", time) if time else 120.0
+    g = _need_game(bot, ctx)
+    await bot.service.submit(ctx.guild_id, K.Extend(seconds))
+    await ctx.say(ctx.t("admin.extended", g, time=seconds))
+    await bot.service.record_admin_action(ctx.guild_id, ctx.user.id, "extend", time)
+
+
+def _slot_of_member(bot, ctx, member_id) -> int:
+    g = _need_game(bot, ctx)
+    slot = g.slot_of_user(int(member_id)) if member_id is not None else None
+    if slot is None:
+        raise Rejected("error.unknown_target")
+    return slot
+
+
+async def c_modkill(bot, ctx, player=None, reason: str = ""):
+    return ("admin.modkill.confirm", {"target": _slot_of_member(bot, ctx, player)})
+
+
+async def h_modkill(bot, ctx, player=None, reason: str = ""):
+    """ADM2-2: cause MODERATED; by day at once, at night queued and announced at dawn."""
+    slot = _slot_of_member(bot, ctx, player)
+    await _admin_submit(bot, ctx, K.ModKill(slot, reason), "admin.modkill.done", "modkill", f"slot {slot} {reason}".strip())
+
+
+async def c_replace(bot, ctx, old=None, new=None):
+    _slot_of_member(bot, ctx, old)
+    g = _need_game(bot, ctx)
+    if new is None or g.slot_of_user(int(new)) is not None:
+        raise Rejected("admin.replace.is_playing")
+    return ("confirm.what.replace", {"player": _slot_of_member(bot, ctx, old), "target": _plain_name(ctx, new)})
+
+
+def _plain_name(ctx, uid) -> str:
+    m = ctx.guild.get_member(int(uid))
+    return sanitize_name(m.display_name) if m else str(uid)
+
+
+async def h_replace(bot, ctx, old=None, new=None):
+    """ADM2-1: checks (in the server, not already playing, DMs open), then the slot changes hands."""
+    slot = _slot_of_member(bot, ctx, old)
+    g = _need_game(bot, ctx)
+    member = ctx.guild.get_member(int(new)) if new is not None else None
+    if member is None or member.bot:
+        raise Rejected("admin.replace.not_member")
+    if g.slot_of_user(member.id) is not None:
+        raise Rejected("admin.replace.is_playing")
+    try:  # a test DM: the new person must be reachable before the slot changes hands
+        await member.send(ctx.t("admin.replace.test_dm", g), allowed_mentions=discord.AllowedMentions.none())  # allow-send: test DM
+    except discord.Forbidden:
+        raise Rejected("lobby.dm_closed")
+    await bot.service.submit(ctx.guild_id, K.Replace(slot, member.id, sanitize_name(member.display_name)))
+    await bot.service.record_admin_action(ctx.guild_id, ctx.user.id, "replace", f"slot {slot}")
+
+
+async def h_settings(bot, ctx, rest: str = ""):
+    """ADM2-4: show the server defaults, or change them with key=value."""
+    cfg = await bot.store.get_config(ctx.guild_id)
+    opts = dict(_OPTION.findall(rest or ""))
+    if opts:
+        merged = {**cfg.server_settings, **opts}
+        resolve_settings(merged, {})  # validates, with a did-you-mean on a typo; raises Rejected
+        cfg.server_settings = merged
+        await bot.store.set_config(cfg)
+        await ctx.say(ctx.t("admin.settings.saved"))
+    settings, _ = resolve_settings(cfg.server_settings, {})
+    await ctx.say(ctx.t("admin.settings.current", settings=", ".join(f"{k}={v}" for k, v in describe_settings(settings))))
+
+
+async def h_diagnose(bot, ctx, fix: bool = False):
+    from .diagnose import run_diagnose
+    await run_diagnose(bot, ctx, fix)
+
+
 async def h_resume(bot, ctx):
     await _admin_submit(bot, ctx, K.Resume(), "admin.resumed", "resume")
 
@@ -379,6 +456,14 @@ COMMANDS: list = [
     CommandSpec("skip", "admin", (), h_skip, prefix=True, confirm=c_skip),
     CommandSpec("abort", "admin", (), h_abort, prefix=True, confirm=c_abort),
     CommandSpec("pause", "admin", (), h_pause, prefix=True),
+    CommandSpec("extend", "admin", (A("time", "text"),), h_extend, prefix=True),
+    CommandSpec("modkill", "admin", (A("player", "member", True), A("reason", "text")), h_modkill, prefix=True,
+                confirm=c_modkill),
+    CommandSpec("replace", "admin", (A("old", "member", True), A("new", "member", True)), h_replace, prefix=True,
+                confirm=c_replace),
+    CommandSpec("settings", "admin", (A("rest", "rest"),), h_settings, prefix=True,
+                slash_args=(A("settings", "text"),), join=lambda kw: {"rest": kw.get("settings", "")}),
+    CommandSpec("diagnose", "admin", (A("fix", "bool"),), h_diagnose, prefix=True),
     CommandSpec("resume", "admin", (), h_resume, prefix=True),
     CommandSpec("export", "admin", (A("game_id", "text"),), h_export, prefix=True),
     CommandSpec("admins", "admin_any", (), h_admins, prefix=True),

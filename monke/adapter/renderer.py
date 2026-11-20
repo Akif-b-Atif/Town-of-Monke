@@ -280,6 +280,9 @@ class DiscordPresenter:
             return None
         if spec[0] == "verdict":
             return views.verdict_view(spec[1], spec[2], spec[3] if len(spec) > 3 else None)
+        if spec[0] == "rematch":
+            from .lobby import rematch_view
+            return rematch_view(self.composer, spec[1])
         if spec[0] == "skip":
             return views.skip_view(spec[1], spec[2], spec[3])
         if spec[0] == "card":
@@ -389,6 +392,21 @@ class DiscordPresenter:
         if m.effect == "banner_edit":
             await self._edit_banner(state)
             return []
+        if m.effect == "replace_roles":
+            await self.swap_slot_role(state, int(m.target.split(":")[1]), m.meta["old"], m.meta["new"])
+            return []
+        if m.target == "lobby":  # POST-1: the game-over summary and rematch button in Monke Lobby
+            cfg = await self._cfg(state.guild_id)
+            if not cfg.lobby_id:
+                return []
+            channel = self._guild(state.guild_id).get_channel(cfg.lobby_id) or await self.bot.fetch_channel(cfg.lobby_id)
+            sent = await self._send(state, outbox, "lobby", GuildWriter.P1, lambda: self.send_logged_plain(
+                channel, embed=embeds[0], view=view))
+            try:
+                await self.bot.lobbies.save_rematch(state)
+            except Exception:
+                log.exception("could not save the rematch record")
+            return [sent] if sent else []
         if m.effect == "purge_jail":
             try:
                 await (await self._channel(state.guild_id, "jail")).purge(limit=None)
@@ -641,6 +659,37 @@ class DiscordPresenter:
 
     async def dm_key(self, state, slot: int, key: str, **vars) -> None:
         await self._dm(state.players[slot].user_id, content=self.composer.t(state, key, **vars))
+
+    async def swap_slot_role(self, state, slot: int, old_uid: int, new_uid: int) -> None:
+        """ADM2-1: the slot role moves to the new member; the old player loses all game roles."""
+        cfg = await self._cfg(state.guild_id)
+        guild = self._guild(state.guild_id)
+        role = guild.get_role(cfg.slot_role_ids[slot - 1])
+        if role is None:
+            return
+        for uid, add in ((old_uid, False), (new_uid, True)):
+            member = guild.get_member(uid)
+            if member is None:
+                try:
+                    member = await guild.fetch_member(uid)
+                except discord.HTTPException:
+                    continue
+            try:
+                await (member.add_roles(role, reason="Town of Monke replace") if add else
+                       member.remove_roles(role, reason="Town of Monke replace"))
+            except discord.HTTPException:
+                log.exception("could not move the slot role")
+
+    async def post_recap(self, state, events: list) -> None:
+        """POST-2: the full recap in Town Centre during the post-game window, a short version in Monke Lobby."""
+        entries = self.composer.recap(state, events)
+        await self.send_logged("town", "\n".join(t for _, t in entries), session=state)
+        cfg = await self._cfg(state.guild_id)
+        if cfg.lobby_id:
+            short = "\n".join(t for k, t in entries if k in ("header", "lynch", "execute", "death"))
+            channel = self._guild(state.guild_id).get_channel(cfg.lobby_id)
+            if channel is not None and short:
+                await self.send_logged_plain(channel, content=short[:1900])
 
     async def post_key(self, state, channel: str, key: str, **vars) -> None:
         await self.send_logged(channel, self.composer.t(state, key, **vars), session=state)

@@ -22,6 +22,7 @@ def migrate_v1_to_v2(d: dict) -> dict:
     d.setdefault("skip_votes", [])
     d.setdefault("night_confirmed", [])
     d.setdefault("night_declined", [])
+    d.setdefault("modkill_queue", [])
     d.setdefault("active_today", [])
     d.setdefault("settings_resolved", dict(d.get("settings", {})))
     players = {}

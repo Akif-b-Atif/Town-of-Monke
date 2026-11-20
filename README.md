@@ -168,6 +168,29 @@ teammates. The card has **Edit will** and, for roles whose ability kills, **Edit
   heuristic misses.
 - The banner is edited in place (new deadline after `extend` or a restart, pause, skip votes) so its countdown stays right.
 
+### Admin tools, game over and the replay tool
+
+- `monke extend [time]` adds time (default 2 minutes) to the current phase; the banner and timer follow.
+- `monke modkill @player [reason]` (confirm) removes a player with cause *moderated*, role revealed by the normal rules. By day it
+  applies at once; at night it is queued and announced at dawn.
+- `monke replace @old @new` (confirm) swaps a player mid-game: the new person must be in the server, not already playing, and
+  reachable by DM. Role state, journal, will and notes carry over; the new person gets the role card, a journal summary and
+  the current banner, and any open prompts; the old person loses all game roles. The public announcement names the slot and
+  both people and nothing else. The archive shows both names.
+- `monke settings [key=value ...]` shows or sets the server defaults (`preset`, `day`, `night`, `afk_cycles` ...); `monke
+  reloadtext` reloads `flavour.yaml`.
+- `monke diagnose [fix:true]` checks permissions (Attach Files included), role hierarchy, channels, overwrites, the 20 slot
+  roles, intents, the database, backups, `flavour.yaml`, quarantined games and unfinished archives, a second running copy,
+  and whether debug mode is on, with a one-line fix for each failure. `fix:true` recreates missing structures and reapplies
+  planned permissions, and never changes a running game's roles. The report is spoiler-safe.
+- **Game over:** the game-over embed lists the winning faction (and the Jester if they won) and every player's name, final role
+  and fate, in Town Centre and in Monke Lobby (with a Play again button). A day-by-day recap built from the event log (deaths
+  and causes, trials with counts and voters, jail and execution moments, what each investigation returned) is posted in Town
+  Centre during the post-game window, and a short version in the Lobby. The archive zip is unchanged (`monke export`).
+- **Replay tool:** `python -m monke.sim.replay data/game.json` (the file inside an archive zip) re-runs the seed and the command
+  log through the engine and checks that the events are identical, printing the first divergence. Reproduce a reported game
+  with it before fixing anything. Games archived before v1.1 have no start record and cannot be replayed.
+
 ### Commands
 
 Every command is defined once in a registry (`monke/adapter/handlers.py`), which generates the slash commands, the
@@ -180,7 +203,7 @@ admin and server commands only.
 the game is told so and nothing else.
 
 **Admins** (Monke Admin role, checked live; only in Monke Commands; slash or `monke ...`): `start`, `status`, `skip`,
-`abort`, `pause`, `resume`, `export [game_id]`, `admins`, `reloadtext`. `skip`, `abort` and `teardown` ask for confirmation with
+`abort`, `pause`, `resume`, `extend`, `modkill`, `replace`, `settings`, `diagnose`, `lobby`, `export [game_id]`, `admins`, `reloadtext`. `skip`, `abort` and `teardown` ask for confirmation with
 Confirm / Cancel buttons that any Monke Admin may press and that expire after 60 seconds.
 **Server managers:** `setup`, `teardown [--force]`.
 
