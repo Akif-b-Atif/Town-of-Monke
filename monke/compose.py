@@ -406,6 +406,19 @@ class Composer:
         when = self.t(state, "ui.when.night" if kind == "N" else "ui.when.day", night=n, day=n)
         return self.t(state, "ui.fate.died", causes=causes, when=when)
 
+    def confirm_text(self, state, role_id: str, ability: str, target, active: bool = True) -> str:
+        """The confirmation line shown on a prompt after a choice (action.confirm.*)."""
+        if ability == "alert":
+            return self.t(state, "action.confirm.alert" if active else "action.confirm.alert_off")
+        if ability == "execute":
+            return self.t(state, "action.confirm.execute" if active else "action.confirm.execute_cancel")
+        if target is None:
+            return self.t(state, "action.confirm.jail_clear" if ability == "jail" else "action.confirm.no_action")
+        key = {"heal": "heal", "roleblock": "block", "order": "mafia_order", "jail": "jail", "haunt": "haunt",
+               "investigate": "consig" if role_id == "consigliere" else "sheriff",
+               "kill": "sk_kill" if role_id == "serial_killer" else "mafia_kill"}.get(ability)
+        return self.t(state, f"action.confirm.{key}", target=target) if key else self.name(state, target)
+
     def card_labels(self, state) -> dict:
         return {"will": self.t(state, "ui.button.edit_will"), "note": self.t(state, "ui.button.edit_note")}
 

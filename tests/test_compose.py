@@ -80,3 +80,21 @@ def test_error_text_words_a_rejection_with_the_next_opportunity():
     except Exception as e:
         text = COMP.error(e, s)
         assert "Day" in text and "Noon" in text
+
+
+def test_every_night_choice_has_a_confirmation_line():
+    from tests.helpers import make_state
+    s = make_state()
+    cases = [("doctor", "heal", 3, True, "heal"), ("escort", "roleblock", 3, True, "block"),
+             ("sheriff", "investigate", 6, True, "sheriff"), ("consigliere", "investigate", 6, True, "consig"),
+             ("mafioso", "kill", 3, True, "mafia_kill"), ("serial_killer", "kill", 3, True, "sk_kill"),
+             ("godfather", "order", 3, True, "mafia_order"), ("jailor", "jail", 3, True, "jail"),
+             ("jester", "haunt", 3, True, "haunt")]
+    for role, ability, target, active, key in cases:
+        assert COMP.confirm_text(s, role, ability, target, active) == COMP.t(s, f"action.confirm.{key}", target=target)
+    assert COMP.confirm_text(s, "veteran", "alert", None, True) == COMP.t(s, "action.confirm.alert")
+    assert COMP.confirm_text(s, "veteran", "alert", None, False) == COMP.t(s, "action.confirm.alert_off")
+    assert COMP.confirm_text(s, "jailor", "execute", None, True) == COMP.t(s, "action.confirm.execute")
+    assert COMP.confirm_text(s, "jailor", "execute", None, False) == COMP.t(s, "action.confirm.execute_cancel")
+    assert COMP.confirm_text(s, "doctor", "heal", None) == COMP.t(s, "action.confirm.no_action")
+    assert COMP.confirm_text(s, "jailor", "jail", None) == COMP.t(s, "action.confirm.jail_clear")

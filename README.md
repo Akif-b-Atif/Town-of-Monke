@@ -1,21 +1,25 @@
 # Town of Monke Bot
 
 A Town-of-Salem-style game run through Discord channel visibility, hidden numbered roles and DMs.
-Implements the v1 design spec (5-20 players, 10 roles, Day/Noon/Afternoon/Night cycle, voting and trials,
-night resolution, anonymous jail relay, graveyard, win conditions, restart recovery) plus the v1.0.1
-quality-of-life release: player names in every message, phase banners with a reason line, admin changes,
-and a **post-game archive** (a zip of every chat, action and night, posted after each game).
+Implements the design spec (5-20 players, 10 roles, Day/Noon/Afternoon/Night cycle, voting and trials,
+night resolution, anonymous jail relay, graveyard, win conditions) and, from v1.1, the complete game: a lobby, role cards, wills
+and death notes, a night recap and journal, dead-player experience, pacing and AFK handling, admin tools, a post-game recap, a
+**post-game archive**, an editable text file for every message, a debug console, and crash-safe restarts.
 
 See [CHANGELOG.md](CHANGELOG.md) for what changed in each release.
 
 ## Architecture (the point of the design)
 
 ```
-adapter/   Discord only: cogs, views, renderer (events -> messages, send_logged), planner (state -> permissions),
-           relay (jail), chatlog (Discord chat events -> chat_log rows), strings (ALL player-visible text), textutil
-service/   GameService (per-guild lock, timers, SQLite persistence, command log, recovery, fail-closed),
-           ArchiveService (the end-of-game archive), ChatCapture (async queue for chat rows), store (SQLite)
-engine/    PURE: (state, command, now) -> (new_state, events). Zero Discord imports.
+adapter/   Discord only: registry + dispatch + handlers (every command, defined once), views, lobby, renderer
+           (events -> messages, send_logged), planner (state -> permissions), relay (jail), chatlog, diagnose
+service/   GameService (per-guild lock, timers, SQLite persistence, command log, ordered rendering with an outbox,
+           recovery pipeline, time compensation), ArchiveService, ChatCapture, store (SQLite, WAL, backups, migrations),
+           instance guard, outbox + ordered writer, lobby model
+engine/    PURE: (state, command, now) -> (new_state, events). Zero Discord imports and no prose: text keys only.
+compose.py PURE: events -> messages through the text system (shared by the bot, simulator, debug console and tests)
+text/      the flavour loader, validator, shuffle bag and the registry of text keys (flavour.yaml is the file you edit)
+describe.py PURE: the one place that words events, commands and night traces for the archive and the debug console
 archive/   PURE: builder (stored rows -> zip contents), zipper (size splitting), channels (registry of archived channels)
 roles/     RoleDef data + handler per role, registered in a registry
 sim/       Plays thousands of full games with fake players (and checks every phase change has a reason)
@@ -30,8 +34,8 @@ names.py   Pure player-name helpers (fmt_player), shared by the engine and the a
 * **`DiscordPresenter.send_logged` is the only way the bot posts to Town Centre, Mafia Lair, Jail and Graveyard.** It never
   pings, splits text over 2,000 characters and embed descriptions over 4,096, caps embeds at 10 per message, and records the
   post. A test (`tests/test_no_direct_send.py`) fails if any other code calls `.send(` without an `# allow-send` marker.
-* **All player-visible text lives in `adapter/strings.py`.** The engine writes data (events with reason codes), not prose,
-  apart from a few role-result lines that use `names.fmt_player`.
+* **All player-visible text lives in `flavour.yaml`.** The engine writes data (events with a `text_key` and variables), never
+  prose; only the composer turns them into words. `tests/test_text.py` scans the engine for stray sentences.
 * Stale timers and stale buttons are harmless: the engine ignores a mismatching `phase_id`, and prompts carry a freshness token.
 * **Adding a role**: create a `RoleDef` + handler class and call `register()` (see `roles/town.py`). The night pipeline
   (`engine/night.py`) is the one place that needs new steps if the role introduces a new interaction; add matching
@@ -224,54 +228,32 @@ when it fires and which `{placeholders}` it may use.
 - Keys that fire several times per game should have at least 3 variants; the checker warns when they have fewer.
 - `python -m monke.text.check` validates the file from the command line.
 
-### Starting a game
+### Role list tokens and settings
 
-```
-monke start @p1 @p2 @p3 @p4 @p5
-Jailor
-Godfather
-TI
-TP
-MK
-day=5 noon=3 afternoon=2 night=2 defense=30 verdict=20 stalemate=3
-```
+Tokens (case-insensitive, separated by spaces, commas or new lines): `Jailor`, `Godfather`, groups `TK TI TP TS MK NK NE`, random
+`RT` (any Town, never Jailor), `RM` (any Mafia, never Godfather), `RN` (any Neutral) and `Any` (anything except Jailor and
+Godfather). Specific role names (e.g. `Sheriff`) work too. `/rolelist 15` shows the default list for 15 players.
 
-Tokens: `Jailor`, `Godfather`, groups `TK TI TP TS MK MS NK NE`, random `RT` (any Town, never Jailor), `RM` (any Mafia,
-never Godfather). Specific role names (e.g. `Sheriff`) are also accepted as a convenience. One role line per player.
-`@mentions` can be pasted from a channel everyone can see, because `#monke-commands` only suggests people who can see it.
+Presets (`preset=blitz|normal|relaxed|async`) and options combine in any order, e.g. `monke start preset=blitz night=3m`.
+Durations are `90s`, `2m`, `1h`; **a bare number means minutes**. Minimums: 2 minutes for Day, Noon, Afternoon and Night, 15 seconds
+for Defense and Verdict.
 
-| Setting | Unit | Minimum | Default |
-|---|---|---|---|
-| `day` | minutes | 2 | 4 |
-| `noon` | minutes | 2 | 3 |
-| `afternoon` | minutes | 2 | 2 |
-| `night` | minutes | 2 | 2 |
-| `defense` | seconds | 15 | 30 |
-| `verdict` | seconds | 15 | 20 |
-| `stalemate` | cycles | 1 | 3 |
+| Preset | Day | Noon | Afternoon | Night | Defense | Verdict |
+|---|---|---|---|---|---|---|
+| blitz | 2m | 2m | 2m | 2m | 15s | 15s |
+| normal (default) | 4m | 3m | 2m | 2m | 30s | 20s |
+| relaxed | 8m | 4m | 4m | 4m | 45s | 30s |
+| async | 2h | 1h | 1h | 2h | 10m | 10m |
 
-Day 1 and the Afternoon phase currently last **half of `day`**; the `afternoon` value is validated but not used for the
-Afternoon length. `monke skip` moves a phase along without waiting.
+Day 1 is half of Day. Other options: `stalemate` (cycles without a death before a draw, 0 disables), `early_day` (on),
+`early_night` (off), `afk_cycles` (3, 0 disables), `allow_wills`, `allow_deathnotes` (on), `will_max` (600), `note_max` (300),
+`post_game_chat` (5m), `lobby_timeout` (30m), `downtime_compensation` (on). Settings resolve in three layers, once at game start:
+built-in defaults, then server defaults (`monke settings`), then per-game options; the result is frozen in the game.
 
-### Commands
+Admin authority is the live **Monke Admin** role, checked on every command; nothing about who is admin is stored. Every admin reply
+starts with the admin's name and never pings.
 
-| Command | Who and where | What it does |
-|---|---|---|
-| `monke setup` | Manage Server | Create or repair the category, channels and roles. |
-| `monke teardown [--force]` | Manage Server | Delete the channels and roles. Refuses while a game runs, or while an archive is unfinished unless `--force`. |
-| `monke start ...` | Monke Admin, `#monke-commands` | Start a game (see above). Refused while the previous game is still being archived. |
-| `monke status` | Monke Admin, `#monke-commands` | Phase, time left, players alive. Never shows roles. |
-| `monke skip` | Monke Admin, `#monke-commands` | End the current phase early. Rejected within 3 seconds of another skip. |
-| `monke abort` | Monke Admin, `#monke-commands` | End the game; the archive is built straight away. |
-| `monke resume` | Monke Admin, `#monke-commands` | Resume a paused game. |
-| `monke export [game_id]` | Monke Admin, `#monke-commands` | Retry a failed archive, or re-post the zip of a finished game. Refuses during a game. |
-| `monke admins` | Monke Admin or Manage Server, any channel | List the current Monke Admin holders. |
-| `/vote @p`, `/unvote`, `/resend` | players | Vote, withdraw a vote, re-send your night prompt. Night actions and verdicts are buttons and menus. |
-
-Admin authority is the live **Monke Admin** role, checked on every command; nothing about who is admin is stored. Every admin
-reply starts with the admin's name and never pings.
-
-## What players see (v1.0.1)
+## What players see
 
 * **Names:** each player's server display name is stored once at game start (control and zero-width characters removed,
   whitespace collapsed, cut to 20 characters, markdown and mentions escaped). The roster lists `#1 Maya`, and every vote, trial,
@@ -286,7 +268,7 @@ reply starts with the admin's name and never pings.
   ```
   The first line is the *reason* for the change. Reason codes: `game_start`, `day1_timer`, `day_timer`, `trial_majority`,
   `defense_timer`, `verdict_guilty`, `verdict_pardon`, `three_innocent`, `noon_no_trial`, `noon_timeout_after_pardon`,
-  `afternoon_timer`, `night_resolved`. Noon also shows how many votes a trial needs. After `monke skip` the line starts with
+  `afternoon_timer`, `night_resolved`, `skip_early`, `trial_cancelled`. Noon also shows how many votes a trial needs. After `monke skip` the line starts with
   "An admin (Name) ended the phase early."
 * **Spoiler-safe admin channel:** while a game is live nothing with roles, seeds or error text is posted in `#monke-commands`.
   An internal error shows only: "Game X was paused because of an internal error. Use `monke resume` or `monke abort`."
@@ -337,55 +319,50 @@ archived games older than `MONKE_ARCHIVE_DAYS` (snapshots and events are kept); 
 ## Tests and simulation
 
 ```bash
-python -m pytest                       # 116 tests: night scenarios, phases, planner, service, names, banners, archive, chat logger
-python -m monke.sim.cli --games 1000   # 1,000 random full games with invariants (every phase change must carry a reason)
+python -m pytest                        # the whole suite: engine, text, composer, commands, lobby, cards, pacing,
+                                        # reliability (the crash matrix F1 to F15 and a chaos test), archive, leaks
+python -m monke.sim.cli --games 1000    # 1,000 random full games; every event is rendered through the real text system
+python -m monke.sim.cli --games 1 --seed 7 --players 8 --debug     # watch one game
+python -m monke.sim.replay data/game.json                         # reproduce a game from its archive
+python -m monke.text.check                                         # validate flavour.yaml
 ```
 
-## Status against the milestones
+## Live checks (a test server)
 
-| M | State |
-|---|---|
-| M1-M3 engine, roles, night resolver, phases, voting, simulator | Done and tested |
-| M4 persistence/service (lock, store, recovery, fail-closed) | Done and tested |
-| v1.0.1 PR 1 foundations (strings, send_logged, names, banners, admin) | Done and tested; played live on a test server |
-| v1.0.1 PR 2 archive | Done and tested offline; the zip upload was confirmed live. Channel purge, DM separators and restart-mid-archive still need a live check |
-| v1.0.1 PR 3 smoothness (spec section 8) | **Not started** (the spec section was not available) |
+Everything above is tested offline against fakes; these need real Discord accounts and are the v1.1 sign-off:
 
-### Live checks still worth doing
-1. After a game ends: the four game channels are empty and unpinned, and players got the separator DM.
-2. Restart the bot while an archive is half done: it resumes and does not post a second zip.
-3. Restart the bot mid-night: prompts still work, the timer resumes.
-4. Jail relay both directions: the Jail channel is purged at dawn, and the Jailor's lines appear in the archive.
+1. A 5-player quick-start game, and a 10+ player lobby game, played to the end with real accounts.
+2. Kill the bot (`kill -9`, or close the console) in Day, Noon, Defense, Verdict, Afternoon and Night with prompts pending, and
+   during the archive. Each time the game continues with the time given back and no duplicate posts.
+3. A debug-mode run (`--debug`) read from start to finish.
+4. Read Monke Commands, Monke Lobby, every public post and every error during a full game as a non-player: no role, seed or
+   private result (the automated version is `tests/test_leaks.py`).
+5. After a game ends: the game channels are empty, players got the separator DM, the archive zip is in Monke Commands, and
+   the game-over embed and Play again button are in Monke Lobby.
 
-## Decisions (spec section 15) and where I deviated or interpreted
+## Decisions (spec section 17) and interpretations
 
-* **D1 Veteran defense:** the spec table says None; Town of Salem gives Basic defense while on alert. I implemented
-  **Basic on alert**. One switch: `VETERAN_ALERT_DEFENSE` in `roles/town.py`.
-* **Slot to player mapping is public.** A roster is posted in Town Centre at start; otherwise nobody can vote for "Player 3".
-  The role-to-player assignment is never printed. Slot roles have no colour/hoist/permissions.
-* **Intents:** the spec lists Guilds + Message Content; receiving message events also needs `guild_messages` and `dm_messages`.
-* **Dead Mafia** keep view-only on the Lair; other dead players get no Lair/Jail (D6). A **jailed Mafia** member can see but not talk in the Lair.
-* **Jester haunt** stays available until used. **Mafia cannot target Mafia.**
-* A **blocked SK attacks the blocker even if he chose no target**. An Escort targeting the prisoner just gets "target in jail".
-* **Win check extras:** if only Neutral Evil roles remain alive the game is a draw. Two living Serial Killers do not win.
-* **Stalemate** counts full cycles (Day lynch + Night) with zero deaths; Day 1 + Night 1 is cycle 1.
-* **Post-game:** Town Centre stays open to participants for 5 minutes (`GameService.post_game_seconds`), then the archive runs.
-* D2-D10 are implemented as written in the spec.
-
-### v1.0.1 decisions and interpretations
-
-* `fmt_player` lives in `monke/names.py` (re-exported from `adapter/textutil.py`) because the engine writes a few role-result
-  lines that need names.
-* The banner heading is `Night 2` for night phases and `Noon, Day 2` style for the others.
-* Engine announcements now covered by the banner reason lines were removed ("Voting is open...", "Night N falls", "Player N was
-  pardoned", "Day N dawns"). The dawn report (spec QOL-3) is not built yet, so the dawn reason line is just "Day N dawns."
-* **Skip protection** rejects a skip within 3 seconds of the last skip. The spec also wants it measured from the phase start; the
-  game state has no `phase_started_at`, so that check only activates if the field is added.
-* `monke admins` can list too few people: the bot does not request the Server Members intent, so it only knows members it has seen.
-* A stale timer advance (one that changes nothing) is not written to the command log.
-* Admin-audience events (for example "a player left the server") are not posted while a game is live; they appear in the archive.
+* **D1 Veteran defense:** the spec table says None; Town of Salem gives Basic defense while on alert. Implemented as **Basic on
+  alert**. One switch: `VETERAN_ALERT_DEFENSE` in `roles/town.py`.
+* **D11-D25 as written:** dead Mafia keep read-only Lair access; `early_day` on and `early_night` off; `RN` and `Any` tokens;
+  default lists cap Neutrals at 2 and may repeat roles; Town stays strictly larger than Mafia plus Neutral; wills 600 and death
+  notes 300 characters; AFK warning at 2 and removal at 3; Monke Lobby visible to everyone and read-only; wiki links point at the
+  Town of Salem fandom page of each role (edit them per role in `flavour.yaml`; please verify the pattern); slash commands are
+  primary and the `monke` prefix covers admin and server commands; time is frozen while the bot is offline and handed back in
+  full (the alternative is to cap it); a built-in `--supervise` restarter; `post_game_chat` 5 minutes; debug mode never prints
+  chat text without `--debug-chat`; any Monke Admin may press lobby and confirmation buttons.
+* **Interpretations:** a bare number in a duration means minutes for every duration, defense and verdict included (write `30s`).
+  AFK is evaluated at dusk (the start of Night): activity counts from one dusk to the next, so a night action counts toward the
+  following day. Confirmation prompts for admin commands are posted in Monke Commands rather than ephemerally, because any admin
+  may press them. A day prompt (the Jailor's) says "Choose before night falls" because its deadline is not known in advance. A
+  recap or journal line may be worded differently from the original DM (the facts are the same) because the text system draws
+  variants. The single instance guard treats a copy on the same machine whose process is gone as not running, so a supervisor can
+  restart a crashed bot at once.
+* **Text keys with no rule behind them yet** (kept in `flavour.yaml`, harmless): `attack.survived`, `vet.alert_on`,
+  `dawn.deaths_intro`, `death.no_will`, `lobby.created`, `admin.export.ready`, `admin.restarted`, `ui.role.unknown`. The spec lists
+  no rule that uses them (for instance, wills are shown only when written, so there is no "left no will" line).
 
 ## Known limits
-Out of v1 as specified: last wills, Mafioso promotion, dead players reading living chats, multiple simultaneous games, lobby UI,
-web dashboard. Not built yet in 1.0.x: the dawn report, warnings before a phase ends, info commands, the graveyard welcome message
-and the night recap (spec section 8). Day 1 / Afternoon length ignores the `afternoon` setting (see above).
+Out of scope until 2.0: new roles, new win conditions, new phases, multiple simultaneous games, a web dashboard. Duplicate Sheriffs,
+Doctors and so on are expected with the current ten-role roster. If the computer itself is off nothing runs; the game resumes,
+time given back, at the next start.

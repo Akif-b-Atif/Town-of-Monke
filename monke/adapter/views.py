@@ -48,15 +48,9 @@ async def _submit_action(interaction, game_id, kind, token, ability, target, tog
     except Rejected as e:
         return await interaction.response.send_message(interaction.client.presenter.composer.error(e, state),
                                                        ephemeral=True)
-    if toggle:
-        choice = _t(interaction, "ui.prompt.on" if active else "ui.prompt.off", state)
-    elif target is None:
-        choice = _t(interaction, "ui.prompt.do_nothing", state)
-    else:
-        choice = interaction.client.presenter.name_of(state, target)
-    base = (interaction.message.content or "").split("\n\n")[0]  # header and deadline; the choice follows
-    await interaction.response.edit_message(
-        content=f"{base}\n\n{_t(interaction, 'ui.prompt.current', state)}: **{choice}**")
+    base = (interaction.message.content or "").split("\n\n")[0]  # header and deadline; the confirmation follows
+    confirm = interaction.client.presenter.composer.confirm_text(state, state.players[slot].role_id, ability, target, active)
+    await interaction.response.edit_message(content=f"{base}\n\n{confirm}")
 
 
 class ActionSelect(discord.ui.DynamicItem[discord.ui.Select],

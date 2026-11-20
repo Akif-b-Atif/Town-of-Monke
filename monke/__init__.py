@@ -1,2 +1,2 @@
-"""Town of Monke: a Town-of-Salem-style Discord game bot ."""
-__version__ = "1.0.1"
+"""Town of Monke: a Town-of-Salem-style Discord game bot."""
+__version__ = "1.1.0"
