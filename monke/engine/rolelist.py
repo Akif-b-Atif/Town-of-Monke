@@ -84,3 +84,50 @@ def assign(user_ids: list, roles: list, rng: random.Random) -> list:
     slots = list(range(1, len(user_ids) + 1))
     rng.shuffle(slots)
     return [(slots[i], user_ids[i], roles[i]) for i in range(len(user_ids))]
+
+
+# ---------------------------------------------------------------------------------------- defaults (LOB-1)
+_TOWN_ORDER = ("Jailor", "TK", "TI", "TP", "TS", "RT")  # the classic list's reading order
+
+
+def default_counts(n: int) -> tuple:
+    """(town, mafia, neutral) for 5 to 20 players: mafia = max(1, round(n*4/15)), 1 neutral up to 11 players and 2
+    from 12, and Town always stays strictly larger than Mafia plus Neutral."""
+    mafia = max(1, int(n * 4 / 15 + 0.5))
+    neutral = 1 if n <= 11 else 2
+    town = n - mafia - neutral
+    if town <= mafia + neutral:
+        mafia -= 1
+        town = n - mafia - neutral
+    return town, mafia, neutral
+
+
+def default_rolelist(n: int) -> list:
+    """The default role list for n players (LOB-1). The classic 15-player list is
+    Jailor TK TI TI TP TP TS RT RT / Godfather MK RM RM / NK NE. Small rosters repeat roles; that goes away in 2.0."""
+    if not C.MIN_PLAYERS <= n <= C.MAX_PLAYERS:
+        raise Rejected("error.player_count", count=n)
+    town, mafia, neutral = default_counts(n)
+    town_slots = ["Jailor", "TI", "TP", "TK", "TS", "TI", "TP"][:town]
+    town_slots += ["RT"] * (town - len(town_slots))
+    town_slots.sort(key=lambda t: _TOWN_ORDER.index(t))  # stable: groups together, in the classic order
+    mafia_slots = (["Godfather", "MK", "RM", "RM", "RM"])[:mafia]
+    neutral_slots = ["RN"] if neutral == 1 else ["NK", "NE"]
+    return town_slots + mafia_slots + neutral_slots
+
+
+def split_tokens(text: str) -> list:
+    """Role list tokens separated by spaces, commas or new lines, case-insensitive (LOB-2). Multi-word role names
+    such as 'Serial Killer' stay together; an unknown word is passed through so validation can name it."""
+    out: list = []
+    for chunk in re.split(r"[,\n;]+", text):
+        words = chunk.split()
+        i = 0
+        while i < len(words):
+            for span in (3, 2, 1):
+                cand = " ".join(words[i:i + span])
+                if span == 1 or normalize_token(cand) is not None:
+                    out.append(cand)
+                    i += span
+                    break
+    return out

@@ -54,7 +54,7 @@ class Presenter(Protocol):
 
 class GameService:
     def __init__(self, store: Store, presenter: Presenter, clock: Callable[[], float] = time.time,
-                 post_game_seconds: float = 300.0, archive=None, sink=None):
+                 post_game_seconds: Optional[float] = None, archive=None, sink=None):
         self.store, self.presenter, self.clock = store, presenter, clock
         self.archive = archive  # ArchiveService; None keeps the old v1 cleanup (used by tests)
         self.post_game_seconds = post_game_seconds
@@ -84,6 +84,13 @@ class GameService:
     def find_by_game_id(self, game_id: str) -> Optional[GameState]:
         return next((g for g in self.games.values() if g.game_id == game_id), None)
 
+    def _post_game_window(self, guild_id: int) -> float:
+        """post_game_chat (default 5 minutes) from the game's frozen settings; the constructor can override it."""
+        if self.post_game_seconds is not None:
+            return self.post_game_seconds
+        st = self.games.get(guild_id)
+        return st.settings.post_game_chat_s if st is not None else 300.0
+
     def _spawn(self, coro) -> None:
         t = asyncio.create_task(coro)
         self._bg.add(t)
@@ -109,7 +116,8 @@ class GameService:
     # ---------------------------------------------------------------- start sequence (10.3)
     async def start_game(self, guild_id: int, user_ids: list, tokens: list, settings: Settings,
                          seed: Optional[int] = None, strict: bool = True,
-                         names: Optional[dict] = None, invoker_user_id: Optional[int] = None) -> GameState:
+                         names: Optional[dict] = None, invoker_user_id: Optional[int] = None,
+                         resolved: Optional[dict] = None) -> GameState:
         async with self.lock(guild_id):
             cur = self.games.get(guild_id)
             if cur is not None and cur.status in (C.STARTING, C.RUNNING, C.PAUSED):
@@ -118,7 +126,7 @@ class GameService:
                 raise Rejected("archive.still_running")  # the next game starts on empty chats
             seed = secrets.randbits(48) if seed is None else seed
             state, events = new_game(secrets.token_hex(6), guild_id, user_ids, tokens, settings, seed, strict=strict,
-                                     names=names)
+                                     names=names, resolved=resolved)
             await self.store.save_game(state)
             self.games[guild_id] = state
             self.sink.game_started(state)
@@ -269,7 +277,7 @@ class GameService:
 
     async def _post_game_cleanup(self, guild_id: int, game_id: str, immediate: bool = False) -> None:
         if not immediate:
-            await asyncio.sleep(self.post_game_seconds)  # the post-game chat window
+            await asyncio.sleep(self._post_game_window(guild_id))  # the post-game chat window
         state = self.games.get(guild_id)
         if state is None or state.game_id != game_id:
             return

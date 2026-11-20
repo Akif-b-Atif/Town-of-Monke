@@ -7,7 +7,7 @@ TOWN_GROUPS = ("TK", "TI", "TP", "TS")
 MAFIA_GROUPS = ("MK", "MS")
 NEUTRAL_GROUPS = ("NK", "NE")
 GROUP_TOKENS = TOWN_GROUPS + MAFIA_GROUPS + NEUTRAL_GROUPS
-RANDOM_TOKENS = ("RT", "RM")
+RANDOM_TOKENS = ("RT", "RM", "RN", "Any")
 
 
 def group_pool(group: str) -> list:
@@ -15,5 +15,8 @@ def group_pool(group: str) -> list:
 
 
 def random_pool(token: str) -> list:
-    groups = TOWN_GROUPS if token == "RT" else MAFIA_GROUPS  # RT never Jailor, RM never Godfather
+    """RT never Jailor, RM never Godfather, RN any Neutral, Any any role except Jailor and Godfather (LOB-2)."""
+    if token == "Any":
+        return [d for d in all_defs() if d.id not in ("jailor", "godfather")]
+    groups = {"RT": TOWN_GROUPS, "RM": MAFIA_GROUPS, "RN": NEUTRAL_GROUPS}[token]
     return [d for d in all_defs() if d.group in groups]

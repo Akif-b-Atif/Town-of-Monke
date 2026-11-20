@@ -9,6 +9,8 @@ from discord.ext import commands
 
 from .. import constants as C
 from ..engine import Settings
+from ..engine.rolelist import default_rolelist
+from ..engine.settings import resolve_settings
 from ..engine import commands as K
 from ..errors import Rejected
 from ..service.game_service import StartAborted
@@ -69,7 +71,7 @@ class AdminCog(commands.Cog):
             bot_ids = {m.id for m in ctx.message.mentions if m.bot}
             req = parse_start(ctx.message.content, bot_ids)
             cfg = await self.bot.store.get_config(ctx.guild.id)
-            settings = Settings.from_options(req.options, Settings(**cfg.default_settings) if cfg.default_settings else None)
+            settings, resolved = resolve_settings(cfg.server_settings, req.options, cfg.default_settings or None)
             await self._say(ctx, self._t("admin.start.starting"))
             names = {}
             for uid in req.user_ids:  # NAM-1: store each player's sanitised server name once, at start
@@ -80,8 +82,9 @@ class AdminCog(commands.Cog):
                     except discord.HTTPException:
                         member = None
                 names[uid] = sanitize_name(member.display_name if member else "")
-            await self.bot.service.start_game(ctx.guild.id, req.user_ids, req.tokens, settings, names=names,
-                                              invoker_user_id=ctx.author.id)
+            await self.bot.service.start_game(ctx.guild.id, req.user_ids, req.tokens or default_rolelist(len(req.user_ids)),
+                                              settings, names=names, invoker_user_id=ctx.author.id,
+                                              resolved=resolved)
         except Rejected as e:
             await self._say(ctx, self._t("admin.start.cant", causes=self._err(e)))
         except StartAborted as e:

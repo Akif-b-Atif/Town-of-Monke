@@ -1,5 +1,5 @@
 00:00:00 000007 Pre-game GAME start seed=7 players=6
-00:00:00 000007 Pre-game GAME settings afternoon_s=120.0 day_s=240.0 defense_s=30.0 night_s=120.0 noon_s=180.0 stalemate_cycles=3 verdict_s=20.0
+00:00:00 000007 Pre-game GAME settings afk_cycles=3 afternoon_s=120.0 allow_deathnotes=True allow_wills=True day_s=240.0 defense_s=30.0 downtime_compensation=True early_day=True early_night=False lobby_timeout_s=1800.0 night_s=120.0 noon_s=180.0 note_max=300 post_game_chat_s=300.0 preset=normal stalemate_cycles=3 verdict_s=20.0 will_max=600
 00:00:00 000007 Pre-game GAME role list jailor, godfather, TS, TK, MK, RT
 00:00:00 000007 Pre-game GAME table #01 Sim4 Mafioso MAFIA
 00:00:00 000007 Pre-game GAME table #02 Sim5 Sheriff TOWN

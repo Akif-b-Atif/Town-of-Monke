@@ -416,3 +416,18 @@ def test_f8_a_missing_database_in_a_server_that_is_already_set_up_refuses_to_run
         assert s2.existed_before
         await s2.close()
     run(go())
+
+
+def test_f7c_with_compensation_off_an_overdue_phase_simply_fires_at_start():
+    async def go():
+        clock, world = Clock(), World()
+        a = await Proc(new_path(), world, clock).boot()
+        s = await a.svc.start_game(GUILD, USERS, TOKENS, Settings(downtime_compensation=False), seed=5, names=NAMES)
+        hb = clock()
+        await a.die()
+        clock.advance(3600)
+        b = await Proc(a.path, world, clock).boot(last_heartbeat=hb)
+        assert not any(c["type"] == "ShiftDeadline" for c in await b.store.load_commands(s.game_id))
+        assert b.svc.get(GUILD).phase_ends_at == s.phase_ends_at  # still overdue: the timer fires at once
+        b.svc.scheduler.cancel(s.game_id)
+    run(go())

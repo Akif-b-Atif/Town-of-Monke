@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import copy
+import dataclasses
 import random
 from dataclasses import dataclass
 
@@ -96,7 +97,7 @@ def _end_game(s: GameState, outcome: wincheck.Outcome, events: list) -> None:
 
 # ---------------------------------------------------------------- game creation
 def new_game(game_id: str, guild_id: int, user_ids: list, tokens: list, settings: Settings,
-             seed: int, strict: bool = True, names: dict = None):
+             seed: int, strict: bool = True, names: dict = None, resolved: dict = None):
     """Validate and create a STARTING game. Emits one RoleAssigned event per player.
     `names` maps user_id -> already-sanitised display name (NAM-1)."""
     settings.validate(strict)
@@ -107,6 +108,7 @@ def new_game(game_id: str, guild_id: int, user_ids: list, tokens: list, settings
     roles = generate_roles(canon, rng)
     assignment = assign(list(user_ids), roles, rng)
     s = GameState(game_id=game_id, guild_id=guild_id, settings=settings, rolelist=list(canon), rng_seed=seed)
+    s.settings_resolved = resolved or {"layers": {}, "result": dataclasses.asdict(settings)}  # LOB-5: frozen
     for slot, uid, role in assignment:
         s.players[slot] = Player(slot, uid, role, display_name=(names or {}).get(uid, ""))
     for p in s.players.values():
@@ -139,7 +141,7 @@ def _enter_noon(s: GameState, now: float, events: list, duration: float = None,
 
 def _enter_afternoon(s: GameState, now: float, events: list, reason: str, **ctx) -> None:
     s.votes, s.trial, s.paused_remaining = {}, None, None
-    _enter(s, C.AFTERNOON, now, s.settings.day_s / 2, events, reason, **ctx)
+    _enter(s, C.AFTERNOON, now, s.settings.afternoon_s, events, reason, **ctx)
 
 
 def _start_night(s: GameState, now: float, events: list, reason: str) -> None:
@@ -229,7 +231,7 @@ def _dawn(s: GameState, now: float, events: list) -> None:
                                           and not res.deaths), quiet=s.quiet_cycles))
     _enter(s, C.DAY, now, s.settings.day_s, events, "night_resolved")
     outcome = wincheck.check(s)
-    if outcome is None and s.quiet_cycles >= s.settings.stalemate_cycles:
+    if outcome is None and s.settings.stalemate_cycles > 0 and s.quiet_cycles >= s.settings.stalemate_cycles:  # 0 disables
         outcome = wincheck.Outcome("DRAW", [], f"{s.quiet_cycles} full cycles passed with no deaths")
     if outcome:
         _end_game(s, outcome, events)
