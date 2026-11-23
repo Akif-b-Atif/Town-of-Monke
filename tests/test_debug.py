@@ -28,8 +28,8 @@ def _mask(text: str) -> str:
 def test_golden_console_output_for_a_scripted_game():
     text = _console()
     if os.environ.get("UPDATE_GOLDEN") or not GOLDEN.exists():
-        GOLDEN.write_text(text)
-    assert _mask(text) == _mask(GOLDEN.read_text())
+        GOLDEN.write_text(text, encoding="utf-8")
+    assert _mask(text) == _mask(GOLDEN.read_text(encoding="utf-8"))
 
 
 def test_every_line_has_the_fixed_columns_and_a_known_tag():
@@ -72,7 +72,8 @@ def test_banner_and_file_output(tmp_path, capsys):
     sink = make_sink(True, str(f))
     run_game(5, 5, sink)
     assert capsys.readouterr().out.startswith(BANNER)
-    assert BANNER in f.read_text() and " GAME " in f.read_text()
+    written = f.read_text(encoding="utf-8")
+    assert BANNER in written and " GAME " in written
 
 
 def test_no_colour_when_not_a_terminal():

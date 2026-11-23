@@ -79,14 +79,14 @@ def test_errors_are_reported_with_key_and_line():
 
 def test_bad_yaml_is_reported_with_a_line(tmp_path):
     f = tmp_path / "f.yaml"
-    f.write_text("a: [unclosed\nb: 2\n")
+    f.write_text("a: [unclosed\nb: 2\n", encoding="utf-8")
     bank, rep = load_text(f)
     assert bank is None and rep.errors and rep.errors[0].line >= 1
 
 
 def test_startup_with_invalid_text_falls_back_to_the_shipped_default(tmp_path):
     f = tmp_path / "f.yaml"
-    f.write_text('dawn.no_deaths: "uses {bogus}"\n')
+    f.write_text('dawn.no_deaths: "uses {bogus}"\n', encoding="utf-8")
     bank, rep, used_default = load_for_use(f)
     assert used_default and rep.errors
     assert bank.render("dawn.no_deaths")  # the shipped default works
@@ -94,7 +94,7 @@ def test_startup_with_invalid_text_falls_back_to_the_shipped_default(tmp_path):
 
 def test_a_valid_file_with_missing_keys_falls_back_per_key(tmp_path):
     f = tmp_path / "f.yaml"
-    f.write_text('dawn.no_deaths: ["Quiet.", "Calm.", "Still."]\n')
+    f.write_text('dawn.no_deaths: ["Quiet.", "Calm.", "Still."]\n', encoding="utf-8")
     bank, rep, used_default = load_for_use(f)
     assert not used_default and rep.warnings
     assert bank.render("dawn.no_deaths", variant=0) == "Quiet."
@@ -127,7 +127,7 @@ def test_the_engine_and_roles_contain_no_prose():
     src = ""
     for sub in ("engine", "roles"):
         for f in (ROOT / "monke" / sub).glob("*.py"):
-            src += f.read_text()
+            src += f.read_text(encoding="utf-8")
     literals = set(re.findall(r'"((?:[a-z_0-9]+\.)+[a-z_0-9]+)"', src))
     keyish = {l for l in literals if l.split(".")[0] in {"error", "attack", "block", "jail", "jailor", "jester", "vet",
                                                           "sk", "mafia", "sheriff", "consig", "doctor", "phase",

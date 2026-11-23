@@ -146,7 +146,7 @@ def test_log_lines_carry_ids_and_the_seed_never_reaches_the_console(tmp_path, ca
     logging.getLogger("monke.spoiler").error("game abc123 seed=424242")
     for h in logging.getLogger().handlers:
         h.flush()
-    text = open(path).read()
+    text = open(path, encoding="utf-8").read()
     assert "guild=7 game=abc123 phase=4 seq=19" in text and "something happened" in text
     assert "seed=424242" in text  # the file is a spoiler file
     assert "424242" not in capsys.readouterr().err
