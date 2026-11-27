@@ -64,6 +64,8 @@ jail.channel.open||2
 jail.jailor.prompt|target|2
 jail.release||2
 jail.target_in_jail||3
+jail.attack_blocked||3
+jail.attacked_in_jail||3
 jailor.executed_notice||2
 jailor.exec_disabled||2
 block.you_were_blocked||3

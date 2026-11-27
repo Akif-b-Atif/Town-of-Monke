@@ -61,7 +61,54 @@ def test_blocked_sk_kills_escort_jailed_sk_kills_jailor():
 def test_visitors_to_prisoner_fail():
     s, ev = run_night([(4, "heal", 3), (7, "kill", 3), (8, "investigate", 3)], prisoner=3)
     assert dead(s) == []
-    assert all("jail.target_in_jail" in keys(ev, n) for n in (4, 7, 8))
+    assert all("jail.target_in_jail" in keys(ev, n) for n in (4, 8))  # heal / investigate: generic note
+    assert "jail.attack_blocked" in keys(ev, 7)  # an attack gets its own, clearer note
+
+
+def test_attacker_and_prisoner_are_told_when_an_attack_hits_the_jail():
+    s, ev = run_night([(7, "kill", 3)], prisoner=3)
+    assert dead(s) == []
+    assert "jail.attack_blocked" in keys(ev, 7) and "jail.target_in_jail" not in keys(ev, 7)
+    assert keys(ev, 3).count("jail.attacked_in_jail") == 1
+    assert keys(ev, 3).index("jail.attacked_in_jail") < keys(ev, 3).index("jail.release")
+    assert "jail.attacked_in_jail" in [e["text_key"] for e in s.players[3].journal]  # also in /journal
+
+
+def test_serial_killer_attack_on_the_prisoner_is_reported_too():
+    s, ev = run_night([(9, "kill", 3)], prisoner=3)
+    assert dead(s) == []
+    assert "jail.attack_blocked" in keys(ev, 9) and "jail.attacked_in_jail" in keys(ev, 3)
+
+
+def test_prisoner_hears_it_once_even_with_two_attackers():
+    s, ev = run_night([(7, "kill", 3), (9, "kill", 3)], prisoner=3)
+    assert keys(ev, 3).count("jail.attacked_in_jail") == 1  # no head-count of killers leaks
+    assert "jail.attack_blocked" in keys(ev, 7) and "jail.attack_blocked" in keys(ev, 9)
+
+
+def test_godfather_and_mafioso_both_hear_that_the_ordered_target_was_in_jail():
+    s, ev = run_night([(6, "order", 3)], prisoner=3)
+    assert "jail.attack_blocked" in keys(ev, 7) and "jail.attack_blocked" in keys(ev, 6)
+    s, ev = run_night([(6, "order", 3), (5, "roleblock", 7)], prisoner=3)  # Mafioso blocked: Godfather kills
+    assert keys(ev, 6).count("jail.attack_blocked") == 1
+
+
+def test_non_attacks_on_the_prisoner_keep_the_generic_note_and_do_not_alert_the_prisoner():
+    s, ev = run_night([(4, "heal", 3), (8, "investigate", 3), (5, "roleblock", 3)], prisoner=3)
+    assert all("jail.target_in_jail" in keys(ev, n) for n in (4, 8, 5))
+    assert "jail.attacked_in_jail" not in keys(ev, 3)
+
+
+def test_nobody_is_told_when_nobody_attacks_the_prisoner():
+    s, ev = run_night([(7, "kill", 4)], prisoner=3)
+    assert "jail.attacked_in_jail" not in keys(ev, 3) and "jail.attack_blocked" not in keys(ev, 7)
+
+
+def test_the_prisoners_notice_does_not_name_the_attacker_or_a_role():
+    from tests.helpers import key_text
+    from monke.roles import all_defs
+    text = key_text("jail.attacked_in_jail")
+    assert not any(d.name in text for d in all_defs())
 
 
 def test_execution_beats_defense_and_disables_on_town():

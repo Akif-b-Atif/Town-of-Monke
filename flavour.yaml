@@ -351,6 +351,18 @@ jail.target_in_jail:
   - "You found nobody home. Your target was in jail."
   - "Your target was locked away tonight, and you accomplished nothing."
 
+# ----- Attacker's target was in jail (kill / Mafia kill only). Vars: none. (3 variants)
+jail.attack_blocked:
+  - "Your attack could not be carried out. Your target wasn't at home tonight; they were in jail."
+  - "You went for your target, but the house was empty. They were locked up in jail."
+  - "Your target was nowhere to be found. They spent the night in jail, out of your reach."
+
+# ----- Told to a prisoner someone tried to kill. Never names or counts attackers. Vars: none. (3 variants)
+jail.attacked_in_jail:
+  - "Someone came for you tonight, but you were in jail and out of their reach."
+  - "You were attacked in the night, but the dungeon walls kept you safe."
+  - "A killer came to your door while you were locked up. Jail saved you tonight."
+
 # ----- Told to the prisoner before execution. Vars: none. (2 variants)
 jailor.executed_notice:
   - "The Jailor has decided to execute you."

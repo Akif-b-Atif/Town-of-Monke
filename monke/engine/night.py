@@ -12,6 +12,7 @@ from . import events as E
 from .state import Action
 
 _VISIT_ABILITIES = {"investigate", "heal", "roleblock", "kill", "mafia_kill"}
+_ATTACK_ABILITIES = {"kill", "mafia_kill"}  # visits that are attacks: a jailed target gets the "attacked in jail" notice
 
 
 @dataclass
@@ -154,11 +155,20 @@ def resolve(s, events: list) -> NightResult:
 
     # N5 Visits (visits to the prisoner fail; Jailor and haunts are not visits)
     visits: list = []
+    prisoner_told = False  # the prisoner hears "attacked in jail" once, however many attackers came (no head-count leak)
     for slot, a in sorted(actions.items()):
         if slot in cancelled or a.ability_id not in _VISIT_ABILITIES or a.target_slot is None:
             continue
         if prisoner is not None and a.target_slot == prisoner:
-            note(slot, "jail.target_in_jail")
+            if a.ability_id in _ATTACK_ABILITIES:
+                note(slot, "jail.attack_blocked")
+                if a.ability_id == "mafia_kill" and order is not None and gf and gf.slot != slot:
+                    note(gf.slot, "jail.attack_blocked")  # the Godfather's order was carried out by the Mafioso
+                if not prisoner_told:
+                    note(prisoner, "jail.attacked_in_jail")
+                    prisoner_told = True
+            else:
+                note(slot, "jail.target_in_jail")
             T("visit", slot, a.target_slot, "target_in_jail", ability=a.ability_id)
             continue
         visits.append(Visit(slot, a.target_slot, a.ability_id))
