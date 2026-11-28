@@ -1,5 +1,31 @@
 # Changelog
 
+## [Unreleased] - Documentation
+
+A documentation-only release that prepares the project for 2.0. No code or behaviour changes.
+
+### Added
+- **`docs/` folder** with a documentation index and guides for every audience:
+  - [Player guide](docs/player-guide.md): joining lobbies, the channels, a full day step by step, wills, death, FAQ.
+  - [Game rules](docs/rules.md): phases, who can talk where, voting and trials, the exact night resolution order, the Mafia
+    kill chain, jail, win conditions, stalemate, AFK, conduct.
+  - [Roles](docs/roles/README.md) with per-category pages ([Town](docs/roles/town.md), [Mafia](docs/roles/mafia.md),
+    [Neutral](docs/roles/neutral.md)), the token table, attack and defense levels, and a
+    [role template](docs/roles/TEMPLATE.md) for 2.0.
+  - [Admin guide](docs/admin-guide.md): server setup, hosting a game, moderation, archive, teardown.
+  - [Command reference](docs/commands.md): every slash command, `monke` command and button.
+  - [Role lists and settings](docs/role-lists-and-settings.md): role-list rules, default lists for 5 to 20 players, every
+    setting, presets, settings layers.
+  - [Hosting the bot](docs/hosting.md): install, Discord application, invite, environment variables, command-line options,
+    systemd, backups, updating, customising `flavour.yaml`.
+  - [Troubleshooting](docs/troubleshooting.md), [Glossary](docs/glossary.md) and
+    [Development guide](docs/development.md) (including a checklist for adding a role and its documentation).
+
+### Changed
+- **README rewritten** as a landing page: overview, features, role table, documentation map, quick start and command cheat
+  sheet. The outdated "v0.1 MVP" title, milestone table and "not yet run against a live Discord server" notes are gone.
+  The design decisions from the README are kept in the rules and role pages.
+
 ## [1.1.0] - 2026-11-20
 
 The complete game with the original ten roles: everything except new roles. The bug-fix release 1.1.1 is next.
